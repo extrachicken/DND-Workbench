@@ -1573,3 +1573,66 @@ details button {
     transition: none !important;
   }
 }
+
+/* Collection and persistent character drafts. */
+.character-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  gap: 20px;
+}
+.character-card {
+  display: flex;
+  flex-direction: column;
+}
+.character-card h2 {
+  margin: 24px 0 12px;
+  overflow-wrap: anywhere;
+}
+.character-card p {
+  overflow-wrap: anywhere;
+}
+.character-card .avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+.active-label {
+  font-size: 11px;
+  color: #a7cbb6;
+  margin-left: auto;
+}
+.card-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 22px;
+}
+.card-actions .primary {
+  flex: 1;
+}
+.back-link {
+  display: inline-block;
+  font-size: 12px;
+  margin: 0 0 18px;
+  min-height: 30px;
+}
+.side-campaign a > div:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.recovery-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  justify-content: space-between;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+  margin-top: 14px;
+  font-size: 12px;
+}
+.recovery-row small {
+  display: block;
+  color: var(--muted);
+  margin-top: 7px;
+}

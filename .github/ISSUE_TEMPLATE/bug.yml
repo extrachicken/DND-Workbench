@@ -1,0 +1,22 @@
+name: Ошибка
+description: Поведение приложения или расчёт, который нужно исправить
+title: "[Ошибка] "
+body:
+  - type: textarea
+    id: steps
+    attributes:
+      label: Как повторить
+      description: Шаги, ожидаемый и фактический результат. Не прикладывайте личную резервную копию.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Устройство, браузер и версия приложения
+    validations:
+      required: true
+  - type: textarea
+    id: rules
+    attributes:
+      label: Если это расчёт — источник правила
+      description: Редакция 2014, книга/страница или ссылка, включённые варианты кампании.

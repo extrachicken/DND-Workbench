@@ -1,13 +1,17 @@
 {
   "name": "dnd-workbench",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc && vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write src vite.config.ts tsconfig.json package.json index.html",
+    "format:check": "prettier --check src vite.config.ts tsconfig.json package.json index.html",
+    "check": "npm run format:check && npm test && npm run build"
   },
   "dependencies": {
     "dexie": "^4.0.0",
@@ -27,5 +31,14 @@
     "vite": "^7.0.0",
     "vite-plugin-pwa": "^1.0.0",
     "vitest": "^4.1.12"
+  },
+  "description": "Личный офлайн-помощник D&D 2014: персонажи и журнал приключений",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/extrachicken/DND-Workbench.git"
+  },
+  "engines": {
+    "node": ">=22.12.0"
   }
 }

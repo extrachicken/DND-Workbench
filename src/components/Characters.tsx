@@ -1,0 +1,425 @@
+import {
+  Archive,
+  ArrowLeft,
+  ChevronRight,
+  Feather,
+  Plus,
+  RotateCcw,
+  Save,
+  Users,
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  archiveCharacter,
+  makeDraft,
+  restoreCharacter,
+  selectCharacter,
+  type AppWorkspace,
+  type Character,
+} from "../workspace";
+
+export type SaveWorkspace = (
+  update: (s: AppWorkspace) => AppWorkspace,
+  message?: string,
+) => Promise<boolean>;
+export function Characters({
+  workspace,
+  save,
+}: {
+  workspace: AppWorkspace;
+  save: SaveWorkspace;
+}) {
+  const [archived, setArchived] = useState(false);
+  const characters = workspace.characters.filter(
+    (c) => Boolean(c.archivedAt) === archived,
+  );
+  return (
+    <>
+      <div className="page-heading">
+        <div>
+          <div className="eyebrow">КАЖДАЯ ИСТОРИЯ — ВАША</div>
+          <h1>Персонажи</h1>
+        </div>
+        <a className="button primary" href="#create">
+          <Plus size={18} />
+          Создать персонажа
+        </a>
+      </div>
+      <div className="sheet-tabs" role="group" aria-label="Список персонажей">
+        <button
+          aria-pressed={!archived}
+          className={!archived ? "selected" : ""}
+          onClick={() => setArchived(false)}
+        >
+          За столом · {workspace.characters.filter((c) => !c.archivedAt).length}
+        </button>
+        <button
+          aria-pressed={archived}
+          className={archived ? "selected" : ""}
+          onClick={() => setArchived(true)}
+        >
+          Архив · {workspace.characters.filter((c) => c.archivedAt).length}
+        </button>
+      </div>
+      {characters.length === 0 ? (
+        <section className="panel empty">
+          <Users size={36} />
+          <h2>{archived ? "Архив пуст" : "Новая история ждёт"}</h2>
+          <p>
+            {archived
+              ? "Архив сохраняет персонажей целиком. Их всегда можно вернуть к игре."
+              : "Создайте персонажа или восстановите его из архива."}
+          </p>
+        </section>
+      ) : (
+        <div className="character-cards">
+          {characters.map((c) => (
+            <article className="panel character-card" key={c.id}>
+              <div className="inline">
+                <div className="avatar tiny">
+                  {c.sheet.portrait ? (
+                    <img src={c.sheet.portrait} width="42" height="48" alt="" />
+                  ) : (
+                    <Feather size={20} />
+                  )}
+                </div>
+                <span className="tag">
+                  {c.kind === "demo" ? "Учебная копия" : "Черновик"}
+                </span>
+                {c.id === workspace.activeCharacterId && (
+                  <span className="active-label">Выбран</span>
+                )}
+              </div>
+              <h2>{c.name}</h2>
+              <p>
+                {c.ancestry}
+                <br />
+                <span className="muted">{c.className}</span>
+              </p>
+              <p className="hint">
+                {c.kind === "demo"
+                  ? "Игровой лист для проверки интерфейса"
+                  : "Образ и история. Проверка правил ещё не подключена."}
+              </p>
+              <div className="card-actions">
+                {archived ? (
+                  <button
+                    className="primary"
+                    onClick={() =>
+                      void save(
+                        (s) => restoreCharacter(s, c.id),
+                        "Персонаж восстановлен",
+                      )
+                    }
+                  >
+                    <RotateCcw size={16} />
+                    Восстановить
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      className="primary"
+                      onClick={() =>
+                        void save(
+                          (s) => selectCharacter(s, c.id),
+                          "Персонаж выбран",
+                        ).then((ok) => {
+                          if (ok) location.hash = "character";
+                        })
+                      }
+                    >
+                      {c.kind === "draft" ? "Открыть черновик" : "Открыть лист"}
+                      <ChevronRight size={16} />
+                    </button>
+                    <button
+                      aria-label={`В архив: ${c.name}`}
+                      title="В архив — можно восстановить"
+                      onClick={() =>
+                        void save(
+                          (s) => archiveCharacter(s, c.id),
+                          "Персонаж в архиве. Восстановление доступно во вкладке «Архив».",
+                        )
+                      }
+                    >
+                      <Archive size={17} />
+                    </button>
+                  </>
+                )}
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+const classes = [
+  "Бард",
+  "Варвар",
+  "Воин",
+  "Волшебник",
+  "Друид",
+  "Жрец",
+  "Изобретатель",
+  "Колдун",
+  "Монах",
+  "Паладин",
+  "Плут",
+  "Следопыт",
+  "Чародей",
+  "Савант (homebrew)",
+];
+const races = [
+  "Человек",
+  "Эльф",
+  "Дварф",
+  "Полурослик",
+  "Гном",
+  "Полуэльф",
+  "Полуорк",
+  "Тифлинг",
+  "Драконорождённый",
+];
+export function DraftEditor({
+  character,
+  save,
+  onDirty,
+}: {
+  character?: Character;
+  save: SaveWorkspace;
+  onDirty: (dirty: boolean) => void;
+}) {
+  const [baseline] = useState(character);
+  const [name, setName] = useState(character?.name ?? "");
+  const [ancestry, setAncestry] = useState(character?.ancestry ?? "Человек");
+  const [className, setClass] = useState(character?.className ?? "Волшебник");
+  const [lore, setLore] = useState(character?.sheet.lore ?? "");
+  const [step, setStep] = useState(character ? 3 : 1);
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    onDirty(dirty);
+    return () => onDirty(false);
+  }, [dirty, onDirty]);
+  function edit(update: () => void) {
+    update();
+    setDirty(true);
+  }
+  async function submit() {
+    setSaving(true);
+    const id = character?.id ?? crypto.randomUUID();
+    const ok = await save(
+      (s) => {
+        if (character) {
+          const current = s.characters.find((c) => c.id === id);
+          // Do not resurrect a character archived in another tab or overwrite a stale edit.
+          if (
+            !current ||
+            current.archivedAt ||
+            current.name !== baseline?.name ||
+            current.ancestry !== baseline?.ancestry ||
+            current.className !== baseline?.className ||
+            current.sheet.lore !== baseline?.sheet.lore
+          )
+            throw new Error("Черновик изменился в другой вкладке.");
+          return {
+            ...s,
+            characters: s.characters.map((c) =>
+              c.id === id
+                ? {
+                    ...c,
+                    name: name.trim(),
+                    ancestry: ancestry.trim(),
+                    className: className.trim(),
+                    sheet: { ...c.sheet, lore },
+                  }
+                : c,
+            ),
+          };
+        }
+        const draft = makeDraft({ id, name, ancestry, className });
+        return {
+          ...s,
+          activeCharacterId: id,
+          characters: [
+            ...s.characters,
+            {
+              ...draft,
+              sheet: {
+                ...draft.sheet,
+                lore,
+              },
+            },
+          ],
+        };
+      },
+      character ? "Черновик обновлён" : "Черновик создан",
+    );
+    setSaving(false);
+    if (ok) {
+      setDirty(false);
+      onDirty(false);
+      location.hash = "characters";
+    }
+  }
+  return (
+    <>
+      <div className="page-heading">
+        <div>
+          <div className="eyebrow">
+            {character ? "ИСТОРИЯ В ВАШИХ РУКАХ" : "НОВАЯ ИСТОРИЯ"}
+          </div>
+          <h1>{character ? "Черновик персонажа" : "Кем вы станете?"}</h1>
+        </div>
+        <a className="button secondary" href="#characters">
+          <ArrowLeft size={16} />К персонажам
+        </a>
+      </div>
+      <div className="creation-layout">
+        <section className="panel">
+          {!character && (
+            <ol className="steps">
+              {["Образ", "Класс", "История"].map((x, i) => (
+                <li key={x} className={step === i + 1 ? "current" : ""}>
+                  <span>{i + 1}</span>
+                  {x}
+                </li>
+              ))}
+            </ol>
+          )}
+          <p className="notice">
+            Сейчас это черновик образа. Проверка правил, характеристики,
+            мультиклассы и повышение уровня появятся позже.
+          </p>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!character && step < 3) setStep(step + 1);
+              else void submit();
+            }}
+          >
+            {(character || step === 1) && (
+              <>
+                <h2>Имя и происхождение</h2>
+                <label>
+                  Имя персонажа
+                  <input
+                    name="character-name"
+                    autoComplete="off"
+                    required
+                    maxLength={80}
+                    pattern=".*\S.*"
+                    value={name}
+                    onChange={(e) => edit(() => setName(e.target.value))}
+                    placeholder="Как зовут вашего героя…"
+                  />
+                </label>
+                <label>
+                  Происхождение
+                  <input
+                    name="ancestry"
+                    autoComplete="off"
+                    required
+                    maxLength={80}
+                    pattern=".*\S.*"
+                    list="ancestry-options"
+                    value={ancestry}
+                    onChange={(e) => edit(() => setAncestry(e.target.value))}
+                  />
+                  <datalist id="ancestry-options">
+                    {races.map((r) => (
+                      <option key={r} value={r} />
+                    ))}
+                  </datalist>
+                </label>
+              </>
+            )}
+            {(character || step === 2) && (
+              <>
+                <h2>Класс персонажа</h2>
+                <label>
+                  Начальный класс
+                  <input
+                    name="class"
+                    autoComplete="off"
+                    required
+                    maxLength={80}
+                    pattern=".*\S.*"
+                    list="class-options"
+                    value={className}
+                    onChange={(e) => edit(() => setClass(e.target.value))}
+                  />
+                  <datalist id="class-options">
+                    {classes.map((c) => (
+                      <option key={c} value={c} />
+                    ))}
+                  </datalist>
+                </label>
+                <p className="hint">
+                  Выберите подсказку или впишите свой вариант. Это название для
+                  черновика, механики класса пока не применяются.
+                </p>
+              </>
+            )}
+            {(character || step === 3) && (
+              <>
+                <h2>{character ? "История" : name}</h2>
+                {!character && (
+                  <p className="muted">
+                    {ancestry} · {className}
+                  </p>
+                )}
+                <label>
+                  История персонажа
+                  <textarea
+                    name="lore"
+                    rows={9}
+                    maxLength={30000}
+                    value={lore}
+                    onChange={(e) => edit(() => setLore(e.target.value))}
+                    placeholder="Откуда вы пришли? Кому доверяете? Чего ищете…"
+                  />
+                </label>
+              </>
+            )}
+            <div className="form-footer">
+              {!character && step > 1 ? (
+                <button type="button" onClick={() => setStep(step - 1)}>
+                  Назад
+                </button>
+              ) : (
+                <span className="hint">
+                  {dirty
+                    ? "Есть несохранённые изменения"
+                    : "Изменения появятся после сохранения"}
+                </span>
+              )}
+              <button className="primary" disabled={saving}>
+                {saving
+                  ? "Сохраняем…"
+                  : !character && step < 3
+                    ? "Продолжить"
+                    : character
+                      ? "Сохранить изменения"
+                      : "Сохранить черновик"}
+                {step < 3 ? <ChevronRight size={16} /> : <Save size={16} />}
+              </button>
+            </div>
+          </form>
+        </section>
+        <aside className="quiet-note">
+          <Feather size={24} />
+          <h3>Сначала — замысел</h3>
+          <p>
+            Набросайте образ и вернитесь к нему в любой момент. Черновики
+            хранятся отдельно от учебного листа Гу Ченя.
+          </p>
+          <p>
+            Архив сохраняет всё содержимое персонажа. Если передумаете,
+            восстановите его из списка.
+          </p>
+        </aside>
+      </div>
+    </>
+  );
+}

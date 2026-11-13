@@ -23,12 +23,22 @@ import {
   Users,
   Zap,
 } from "lucide-react";
-import { db, initialize, changeWorkspace } from "./db";
+import { db, initialize, changeWorkspace, replaceWorkspace } from "./db";
+import {
+  activeCharacter,
+  decodeBackup,
+  encodeBackup,
+  MAX_BACKUP_BYTES,
+  sheetView,
+  updateSheet,
+  type AppWorkspace,
+} from "./workspace";
+import { Characters, DraftEditor } from "./components/Characters";
+import { usePage } from "./hooks/usePage";
 import {
   damage,
   heal,
   modifier,
-  parseBackup,
   rollDie,
   signed,
   type Workspace,
@@ -55,43 +65,19 @@ const spells = [
   ["Обнаружение магии", "Detect Magic", "1 круг"],
 ];
 const nav = [
-  { id: "character", title: "Персонаж", icon: Users },
+  { id: "characters", title: "Персонажи", icon: Users },
   { id: "journal", title: "Журнал", icon: BookOpen },
   { id: "library", title: "Библиотека", icon: Bookmark },
   { id: "settings", title: "Настройки", icon: Settings },
 ];
-const classes = [
-  "Бард",
-  "Варвар",
-  "Воин",
-  "Волшебник",
-  "Друид",
-  "Жрец",
-  "Изобретатель",
-  "Колдун",
-  "Монах",
-  "Паладин",
-  "Плут",
-  "Следопыт",
-  "Чародей",
-  "Савант (homebrew)",
-];
-function usePage() {
-  const read = () => location.hash.slice(1) || "character";
-  const [page, setPage] = useState(read);
-  useEffect(() => {
-    const handler = () => setPage(read());
-    addEventListener("hashchange", handler);
-    return () => removeEventListener("hashchange", handler);
-  }, []);
-  return page;
-}
 function App() {
-  const page = usePage();
+  const [dirty, setDirty] = useState(false);
+  const page = usePage(dirty);
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [page]);
-  const data = useLiveQuery(() => db.workspace.get("local"));
+  const data = useLiveQuery(() => db.documents.get("local"));
+  const recovery = useLiveQuery(() => db.recovery.toArray());
   const [cached, setCached] = useState(false);
   useEffect(() => {
     if (import.meta.env.PROD && "serviceWorker" in navigator)
@@ -105,10 +91,6 @@ function App() {
   const [roll, setRoll] = useState("");
   const [die, setDie] = useState(20);
   const [physical, setPhysical] = useState("");
-  const [draftStep, setDraftStep] = useState(1);
-  const [draftName, setDraftName] = useState("");
-  const [draftClass, setDraftClass] = useState("Волшебник");
-  const [draftRace, setDraftRace] = useState("Человек");
   const [noteId, setNoteId] = useState("");
   const {
     offlineReady: [offlineReady],
@@ -122,8 +104,8 @@ function App() {
       ),
     );
   }, []);
-  async function save(
-    update: (s: Workspace) => Workspace,
+  async function saveApp(
+    update: (s: AppWorkspace) => AppWorkspace,
     message = "Сохранено на устройстве",
   ) {
     try {
@@ -131,9 +113,11 @@ function App() {
       setStatus(message);
       setError("");
       return true;
-    } catch {
+    } catch (cause) {
       setError(
-        "Не удалось сохранить изменения. Проверьте свободное место и разрешение на хранение данных.",
+        cause instanceof Error && cause.message.includes("другой вкладке")
+          ? cause.message + " Скопируйте свой текст перед перезагрузкой."
+          : "Не удалось сохранить изменения. Проверьте поля, свободное место и разрешение на хранение данных.",
       );
       return false;
     }
@@ -146,7 +130,15 @@ function App() {
         <p role="status">{error || "Открываем ваш стол приключений…"}</p>
       </main>
     );
-  const s = data.data;
+  const workspace = data.data;
+  const character = activeCharacter(workspace);
+  const s = sheetView(workspace);
+  async function save(update: (s: Workspace) => Workspace, message?: string) {
+    return saveApp(
+      (v) => updateSheet(v, character?.id ?? null, update),
+      message,
+    );
+  }
   const number = Number(amount);
   const amountValid =
     amount.trim() !== "" &&
@@ -154,31 +146,46 @@ function App() {
     number >= 0 &&
     number <= 9999;
   const activeNote = s.notes.find((n) => n.id === noteId) || s.notes[0];
-  function exportBackup() {
+  function downloadJson(raw: string, filename: string) {
     const url = URL.createObjectURL(
-      new Blob([JSON.stringify(s, null, 2)], { type: "application/json" }),
+      new Blob([raw], { type: "application/json" }),
     );
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `workbench-${new Date().toISOString().slice(0, 10)}.dndwb.json`;
-    a.click();
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    setStatus("Файл резервной копии подготовлен");
+  }
+  function exportBackup() {
+    try {
+      downloadJson(
+        encodeBackup(workspace),
+        `workbench-${new Date().toISOString().slice(0, 10)}.dndwb.json`,
+      );
+      setStatus("Резервная копия подготовлена");
+    } catch {
+      setError(
+        "Не удалось подготовить копию. Уменьшите размер портретов; общий лимит — 50 МБ.",
+      );
+    }
   }
   async function importBackup(file?: File) {
     if (!file) return;
     try {
-      if (file.size > 5_000_000) throw new Error();
-      const imported = parseBackup(await file.text());
+      if (file.size > MAX_BACKUP_BYTES) throw new Error();
+      const imported = decodeBackup(await file.text());
       if (
-        confirm(
-          "Заменить данные на этом устройстве данными из файла? Сначала сохраните текущую резервную копию.",
+        !confirm(
+          `В файле ${imported.characters.length} персонажей и ${imported.notes.length} записей. Заменить текущие данные? Текущее состояние сохранится в точке восстановления.`,
         )
       )
-        await save(() => imported, "Резервная копия восстановлена");
+        return;
+      await replaceWorkspace(imported);
+      setStatus("Резервная копия восстановлена");
+      setError("");
     } catch {
       setError(
-        "Файл не подходит. Выберите резервную копию Workbench версии 1, не больше 5 МБ.",
+        "Не удалось восстановить копию. Нужен JSON Workbench версии 1 или 2 до 50 МБ и достаточно места в браузере. Исходные данные сохранены.",
       );
     }
   }
@@ -214,7 +221,7 @@ function App() {
         Перейти к содержимому
       </a>
       <aside className="sidebar">
-        <a href="#character" className="brand">
+        <a href="#characters" className="brand">
           <img src="/icon.svg" width="38" height="38" alt="" />
           <span>
             WORKBENCH<small>DUNGEONS & DRAGONS · 2014</small>
@@ -226,7 +233,12 @@ function App() {
             <a
               key={id}
               href={`#${id}`}
-              className={page === id ? "active" : ""}
+              className={
+                page === id ||
+                (id === "characters" && ["character", "create"].includes(page))
+                  ? "active"
+                  : ""
+              }
               aria-current={page === id ? "page" : undefined}
             >
               <Icon size={19} aria-hidden="true" />
@@ -237,14 +249,24 @@ function App() {
         </nav>
         <div className="side-campaign">
           <span className="eyebrow">ТЕКУЩИЙ ПЕРСОНАЖ</span>
-          <a href="#character">
-            <div className="avatar tiny">ГЧ</div>
-            <div>
-              <strong>Гу Чень</strong>
-              <small>Савант 3 / Волшебник 1</small>
-            </div>
-          </a>
-          <span className="tag">Учебная копия</span>
+          {character ? (
+            <>
+              <a href="#character">
+                <div className="avatar tiny">
+                  <Feather size={17} />
+                </div>
+                <div>
+                  <strong>{character.name}</strong>
+                  <small>{character.className}</small>
+                </div>
+              </a>
+              <span className="tag">
+                {character.kind === "demo" ? "Учебная копия" : "Черновик"}
+              </span>
+            </>
+          ) : (
+            <p className="hint">Выберите персонажа в списке</p>
+          )}
         </div>
         <div className="sidebar-bottom">
           <span className="connection-dot" />
@@ -264,10 +286,33 @@ function App() {
                 : nav.find((n) => n.id === page)?.title || "Персонаж"}
             </strong>
           </span>
-          <span className="prototype">ПРОТОТИП · 0.1</span>
+          <span className="prototype">ПРОТОТИП · 0.2</span>
         </header>
         <main id="main" tabIndex={-1}>
-          {page === "character" && (
+          {page === "characters" && (
+            <Characters workspace={workspace} save={saveApp} />
+          )}
+          {page === "character" && character?.kind === "draft" && (
+            <DraftEditor
+              key={character.id}
+              character={character}
+              save={saveApp}
+              onDirty={setDirty}
+            />
+          )}
+          {page === "character" && !character && (
+            <section className="panel empty">
+              <h1>Выберите персонажа</h1>
+              <p>
+                Все персонажи могут быть в архиве. Их можно восстановить в
+                списке.
+              </p>
+              <a className="button primary" href="#characters">
+                К персонажам
+              </a>
+            </section>
+          )}
+          {page === "character" && character?.kind === "demo" && (
             <>
               <div className="page-heading">
                 <div>
@@ -279,6 +324,9 @@ function App() {
                   Создать персонажа
                 </a>
               </div>
+              <a className="back-link" href="#characters">
+                ← Все персонажи
+              </a>
               <section className="character-banner">
                 <div className="avatar portrait">
                   {s.portrait ? (
@@ -803,188 +851,14 @@ function App() {
                   </p>
                 </section>
               )}
-              {s.drafts.length > 0 && (
-                <section className="panel drafts">
-                  <h3>Черновики персонажей</h3>
-                  {s.drafts.map((d) => (
-                    <div className="skill-row" key={d.id}>
-                      <span>
-                        {d.name}
-                        <small>
-                          {d.ancestry} · {d.className}
-                        </small>
-                      </span>
-                      <span className="tag">Не проверен</span>
-                    </div>
-                  ))}
-                </section>
-              )}
             </>
           )}
           {page === "create" && (
-            <>
-              <div className="page-heading">
-                <div className="eyebrow">НОВАЯ ИСТОРИЯ</div>
-                <h1>Кем вы станете?</h1>
-                <p className="muted">
-                  Начните с образа. Детали придадут ему жизнь.
-                </p>
-              </div>
-              <div className="creation-layout">
-                <section className="panel">
-                  <ol className="steps">
-                    {["Образ", "Класс", "Черновик"].map((x, i) => (
-                      <li
-                        key={x}
-                        className={draftStep === i + 1 ? "current" : ""}
-                      >
-                        <span>{i + 1}</span>
-                        {x}
-                      </li>
-                    ))}
-                  </ol>
-                  <p className="notice">
-                    Это прототип создания. Он сохраняет замысел персонажа;
-                    проверка правил, характеристики и повышение уровня ещё
-                    разрабатываются.
-                  </p>
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      if (draftStep < 3) setDraftStep(draftStep + 1);
-                      else if (draftName.trim()) {
-                        void save(
-                          (v) => ({
-                            ...v,
-                            drafts: [
-                              ...v.drafts,
-                              {
-                                id: crypto.randomUUID(),
-                                name: draftName.trim(),
-                                ancestry: draftRace,
-                                className: draftClass,
-                              },
-                            ],
-                          }),
-                          "Черновик сохранён",
-                        ).then((ok) => {
-                          if (!ok) return;
-                          location.hash = "character";
-                          setDraftStep(1);
-                          setDraftName("");
-                        });
-                      }
-                    }}
-                  >
-                    {draftStep === 1 && (
-                      <>
-                        <h2>Сначала — имя и происхождение</h2>
-                        <label>
-                          Имя персонажа
-                          <input
-                            autoComplete="off"
-                            required
-                            maxLength={80}
-                            value={draftName}
-                            onChange={(e) => setDraftName(e.target.value)}
-                            placeholder="Как зовут вашего героя…"
-                          />
-                        </label>
-                        <label>
-                          Происхождение
-                          <select
-                            value={draftRace}
-                            onChange={(e) => setDraftRace(e.target.value)}
-                          >
-                            {[
-                              "Человек",
-                              "Эльф",
-                              "Дварф",
-                              "Полурослик",
-                              "Гном",
-                              "Полуэльф",
-                              "Полуорк",
-                              "Тифлинг",
-                              "Драконорождённый",
-                            ].map((x) => (
-                              <option key={x}>{x}</option>
-                            ))}
-                          </select>
-                        </label>
-                      </>
-                    )}
-                    {draftStep === 2 && (
-                      <>
-                        <h2>Выберите направление</h2>
-                        <p className="muted">
-                          В полной версии здесь будут объяснения особенностей,
-                          роли в группе и выбора на каждом уровне.
-                        </p>
-                        <label>
-                          Начальный класс
-                          <select
-                            value={draftClass}
-                            onChange={(e) => setDraftClass(e.target.value)}
-                          >
-                            {classes.map((x) => (
-                              <option key={x}>{x}</option>
-                            ))}
-                          </select>
-                        </label>
-                        <div className="choice-preview">
-                          <BookOpen size={32} />
-                          <h3>{draftClass}</h3>
-                          <p>
-                            Выбор сохранится в черновике. Механики класса ещё не
-                            применяются.
-                          </p>
-                        </div>
-                      </>
-                    )}
-                    {draftStep === 3 && (
-                      <>
-                        <h2>{draftName}</h2>
-                        <p>
-                          {draftRace} · {draftClass}
-                        </p>
-                        <p className="muted">
-                          Следующий этап разработки добавит характеристики,
-                          предыстории, навыки, черты и проверку обязательных
-                          выборов.
-                        </p>
-                      </>
-                    )}
-                    <div className="form-footer">
-                      {draftStep > 1 ? (
-                        <button
-                          type="button"
-                          onClick={() => setDraftStep(draftStep - 1)}
-                        >
-                          Назад
-                        </button>
-                      ) : (
-                        <a href="#character">К листу персонажа</a>
-                      )}
-                      <button className="primary">
-                        {draftStep === 3 ? "Сохранить черновик" : "Продолжить"}
-                        <ChevronRight size={16} />
-                      </button>
-                    </div>
-                  </form>
-                </section>
-                <aside className="quiet-note">
-                  <Sparkles size={24} />
-                  <h3>Каждый выбор понятен</h3>
-                  <p>
-                    В будущем мастер создания будет объяснять правила в нужный
-                    момент и показывать, что ещё нужно выбрать.
-                  </p>
-                  <p>
-                    Официальные материалы и homebrew будут отмечены отдельно.
-                  </p>
-                </aside>
-              </div>
-            </>
+            <DraftEditor
+              key="new-character"
+              save={saveApp}
+              onDirty={setDirty}
+            />
           )}
           {page === "journal" && (
             <>
@@ -1172,7 +1046,50 @@ function App() {
                       }}
                     />
                   </label>
-                  <p className="hint">JSON · версия 1 · до 5 МБ</p>
+                  <p className="hint">
+                    JSON · версия 2 · до 50 МБ · импорт версии 1 поддерживается
+                  </p>
+                </section>
+                <section className="panel">
+                  <h3>Точки восстановления</h3>
+                  <p className="muted">
+                    Снимок перед переходом с версии 0.1 и состояние перед
+                    последним импортом. Скачайте нужную копию и восстановите её
+                    через импорт. Они хранятся в этом браузере и не заменяют
+                    внешний бэкап.
+                  </p>
+                  {recovery?.length ? (
+                    recovery.map((r) => (
+                      <div className="recovery-row" key={r.id}>
+                        <span>
+                          {r.reason === "migration-v1"
+                            ? "До перехода на несколько персонажей"
+                            : "До последнего импорта"}
+                          <small>
+                            {new Intl.DateTimeFormat("ru", {
+                              dateStyle: "medium",
+                              timeStyle: "short",
+                            }).format(new Date(r.createdAt))}
+                          </small>
+                        </span>
+                        <button
+                          aria-label={`Скачать снимок: ${r.reason === "migration-v1" ? "до миграции" : "до импорта"}`}
+                          onClick={() =>
+                            downloadJson(
+                              JSON.stringify(r.data, null, 2),
+                              `workbench-recovery-${r.id}.dndwb.json`,
+                            )
+                          }
+                        >
+                          <Download size={17} />
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="hint">
+                      Снимки появятся при миграции или импорте данных.
+                    </p>
+                  )}
                 </section>
                 <section className="panel">
                   <h3>Отображение и доступность</h3>
@@ -1207,9 +1124,14 @@ function App() {
               </div>
             </>
           )}
-          {!["character", "create", "journal", "library", "settings"].includes(
-            page,
-          ) && (
+          {![
+            "characters",
+            "character",
+            "create",
+            "journal",
+            "library",
+            "settings",
+          ].includes(page) && (
             <Empty title="Страница не найдена" text="Выберите раздел в меню." />
           )}
           <footer className="page-footer">
