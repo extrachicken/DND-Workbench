@@ -90,9 +90,16 @@ GitHub Actions повторяет проверки на Node.js 24. Тесты �
 
 ```text
 src/
+  main.tsx                  запуск React и подключение стилей
+  App.tsx                   навигация, состояние экранов и уведомления
   components/Characters.tsx  список персонажей и редактор черновиков
+  components/DemoSheet.tsx   учебный игровой лист Гу Ченя
+  components/Journal.tsx     заметки сессий
+  components/Library.tsx     экран библиотеки
+  components/Spells.tsx      учебные названия заклинаний, поиск и список
+  components/Settings.tsx    резервные копии, единицы и состояние офлайна
+  components/Empty.tsx       общие пустые состояния
   hooks/usePage.ts           навигация с защитой несохранённого текста
-  main.tsx                  оболочка и экраны исходного прототипа
   model.ts                  схема v1 и базовые операции ресурсов
   workspace.ts              схема v2, миграция и операции персонажей
   db.ts                     IndexedDB и точки восстановления
@@ -101,6 +108,10 @@ src/
 ```
 
 React · TypeScript · Vite · Dexie · Zod · Vitest · Vite PWA.
+
+Журнал и настройки работают с общим рабочим пространством v2. Адаптер
+`sheetView/updateSheet` используется только учебным листом; разделение сборки
+персонажа, игрового состояния и вычисляемых значений — следующий этап.
 
 ## План и документация
 

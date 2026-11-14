@@ -1,0 +1,302 @@
+import { useEffect, useState } from "react";
+import { useLiveQuery } from "dexie-react-hooks";
+import { useRegisterSW } from "virtual:pwa-register/react";
+import {
+  BookOpen,
+  Bookmark,
+  ChevronRight,
+  Feather,
+  Settings as SettingsIcon,
+  Users,
+  X,
+} from "lucide-react";
+import { db, initialize, changeWorkspace } from "./db";
+import {
+  activeCharacter,
+  sheetView,
+  updateSheet,
+  type AppWorkspace,
+} from "./workspace";
+import type { Workspace } from "./model";
+import { Characters, DraftEditor } from "./components/Characters";
+import { DemoSheet } from "./components/DemoSheet";
+import { Journal } from "./components/Journal";
+import { Library } from "./components/Library";
+import { Settings } from "./components/Settings";
+import { Empty } from "./components/Empty";
+import { usePage } from "./hooks/usePage";
+
+const nav = [
+  { id: "characters", title: "Персонажи", icon: Users },
+  { id: "journal", title: "Журнал", icon: BookOpen },
+  { id: "library", title: "Библиотека", icon: Bookmark },
+  { id: "settings", title: "Настройки", icon: SettingsIcon },
+];
+export function App() {
+  const [dirty, setDirty] = useState(false);
+  const page = usePage(dirty);
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [page]);
+  const data = useLiveQuery(() => db.documents.get("local"));
+  const recovery = useLiveQuery(() => db.recovery.toArray());
+  const [cached, setCached] = useState(false);
+  useEffect(() => {
+    if (import.meta.env.PROD && "serviceWorker" in navigator)
+      void navigator.serviceWorker.ready.then(() => setCached(true));
+  }, []);
+  const [error, setError] = useState("");
+  const [status, setStatus] = useState("");
+  // Keep transient screen state here so navigation does not reset it on unmount.
+  const [tab, setTab] = useState("Обзор");
+  const [amount, setAmount] = useState("5");
+  const [query, setQuery] = useState("");
+  const [roll, setRoll] = useState("");
+  const [die, setDie] = useState(20);
+  const [physical, setPhysical] = useState("");
+  const [noteId, setNoteId] = useState("");
+  const {
+    offlineReady: [offlineReady],
+    needRefresh: [needRefresh],
+    updateServiceWorker,
+  } = useRegisterSW();
+  useEffect(() => {
+    initialize().catch(() =>
+      setError(
+        "Не удалось открыть хранилище. Разрешите хранение данных в браузере и перезагрузите страницу.",
+      ),
+    );
+  }, []);
+  async function saveApp(
+    update: (s: AppWorkspace) => AppWorkspace,
+    message = "Сохранено на устройстве",
+  ) {
+    try {
+      await changeWorkspace(update);
+      setStatus(message);
+      setError("");
+      return true;
+    } catch (cause) {
+      setError(
+        cause instanceof Error && cause.message.includes("другой вкладке")
+          ? cause.message + " Скопируйте свой текст перед перезагрузкой."
+          : "Не удалось сохранить изменения. Проверьте поля, свободное место и разрешение на хранение данных.",
+      );
+      return false;
+    }
+  }
+  if (!data)
+    return (
+      <main className="loading">
+        <img src="/icon.svg" width="64" height="64" alt="" />
+        <h1>Workbench</h1>
+        <p role="status">{error || "Открываем ваш стол приключений…"}</p>
+      </main>
+    );
+  const workspace = data.data;
+  const character = activeCharacter(workspace);
+  async function save(update: (s: Workspace) => Workspace, message?: string) {
+    return saveApp(
+      (v) => updateSheet(v, character?.id ?? null, update),
+      message,
+    );
+  }
+  return (
+    <div className="app-shell">
+      <a
+        className="skip"
+        href="#main"
+        onClick={(e) => {
+          e.preventDefault();
+          document.getElementById("main")?.focus();
+        }}
+      >
+        Перейти к содержимому
+      </a>
+      <aside className="sidebar">
+        <a href="#characters" className="brand">
+          <img src="/icon.svg" width="38" height="38" alt="" />
+          <span>
+            WORKBENCH<small>DUNGEONS & DRAGONS · 2014</small>
+          </span>
+        </a>
+        <div className="side-label">ВАШ СТОЛ ПРИКЛЮЧЕНИЙ</div>
+        <nav aria-label="Основная навигация">
+          {nav.map(({ id, title, icon: Icon }) => (
+            <a
+              key={id}
+              href={`#${id}`}
+              className={
+                page === id ||
+                (id === "characters" && ["character", "create"].includes(page))
+                  ? "active"
+                  : ""
+              }
+              aria-current={
+                page === id ||
+                (id === "characters" && ["character", "create"].includes(page))
+                  ? "page"
+                  : undefined
+              }
+            >
+              <Icon size={19} aria-hidden="true" />
+              <span>{title}</span>
+              {page === id && <span className="nav-dot" />}
+            </a>
+          ))}
+        </nav>
+        <div className="side-campaign">
+          <span className="eyebrow">ТЕКУЩИЙ ПЕРСОНАЖ</span>
+          {character ? (
+            <>
+              <a href="#character">
+                <div className="avatar tiny">
+                  <Feather size={17} />
+                </div>
+                <div>
+                  <strong>{character.name}</strong>
+                  <small>{character.className}</small>
+                </div>
+              </a>
+              <span className="tag">
+                {character.kind === "demo" ? "Учебная копия" : "Черновик"}
+              </span>
+            </>
+          ) : (
+            <p className="hint">Выберите персонажа в списке</p>
+          )}
+        </div>
+        <div className="sidebar-bottom">
+          <span className="connection-dot" />
+          Локальное хранилище<small>Ваши истории остаются у вас.</small>
+          <a href="#settings">
+            Сделать резервную копию <ChevronRight size={14} />
+          </a>
+        </div>
+      </aside>
+      <div className="workspace">
+        <header className="topbar">
+          <span>
+            Личный стол <ChevronRight size={13} />{" "}
+            <strong>
+              {page === "create"
+                ? "Новый персонаж"
+                : nav.find((n) => n.id === page)?.title || "Персонаж"}
+            </strong>
+          </span>
+          <span className="prototype">ПРОТОТИП · 0.2</span>
+        </header>
+        <main id="main" tabIndex={-1}>
+          {page === "characters" && (
+            <Characters workspace={workspace} save={saveApp} />
+          )}
+          {page === "character" && character?.kind === "draft" && (
+            <DraftEditor
+              key={character.id}
+              character={character}
+              save={saveApp}
+              onDirty={setDirty}
+            />
+          )}
+          {page === "character" && !character && (
+            <section className="panel empty">
+              <h1>Выберите персонажа</h1>
+              <p>
+                Все персонажи могут быть в архиве. Их можно восстановить в
+                списке.
+              </p>
+              <a className="button primary" href="#characters">
+                К персонажам
+              </a>
+            </section>
+          )}
+          {page === "character" && character?.kind === "demo" && (
+            <DemoSheet
+              s={sheetView(workspace)}
+              save={save}
+              controls={{
+                tab,
+                setTab,
+                amount,
+                setAmount,
+                roll,
+                setRoll,
+                die,
+                setDie,
+                physical,
+                setPhysical,
+              }}
+              query={query}
+              setQuery={setQuery}
+              setError={setError}
+            />
+          )}
+          {page === "create" && (
+            <DraftEditor
+              key="new-character"
+              save={saveApp}
+              onDirty={setDirty}
+            />
+          )}
+          {page === "journal" && (
+            <Journal
+              workspace={workspace}
+              save={saveApp}
+              noteId={noteId}
+              setNoteId={setNoteId}
+            />
+          )}
+          {page === "library" && <Library query={query} setQuery={setQuery} />}
+          {page === "settings" && (
+            <Settings
+              workspace={workspace}
+              save={saveApp}
+              recovery={recovery}
+              offlineReady={offlineReady || cached}
+              needRefresh={needRefresh}
+              updateServiceWorker={updateServiceWorker}
+              setStatus={setStatus}
+              setError={setError}
+            />
+          )}
+          {![
+            "characters",
+            "character",
+            "create",
+            "journal",
+            "library",
+            "settings",
+          ].includes(page) && (
+            <Empty title="Страница не найдена" text="Выберите раздел в меню." />
+          )}
+          <footer className="page-footer">
+            <span>
+              DND Workbench <span className="gold">✧</span> Личный стол
+              приключений
+            </span>
+            <span>Прототип интерфейса · правила внедряются поэтапно</span>
+          </footer>
+        </main>
+        <div
+          className={`save-status ${error ? "error" : ""}`}
+          hidden={!error && !status}
+        >
+          <span role="status" aria-live="polite">
+            {error || status}
+          </span>
+          {(error || status) && (
+            <button
+              aria-label="Закрыть уведомление"
+              onClick={() => {
+                setError("");
+                setStatus("");
+              }}
+            >
+              <X size={16} aria-hidden="true" />
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

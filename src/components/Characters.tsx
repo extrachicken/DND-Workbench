@@ -40,9 +40,10 @@ export function Characters({
           <div className="eyebrow">КАЖДАЯ ИСТОРИЯ — ВАША</div>
           <h1>Персонажи</h1>
         </div>
-        <a className="button primary" href="#create">
+        <a className="button primary create-link" href="#create">
           <Plus size={18} />
-          Создать персонажа
+          <span className="wide-label">Создать персонажа</span>
+          <span className="compact-label">Создать</span>
         </a>
       </div>
       <div className="sheet-tabs" role="group" aria-label="Список персонажей">
@@ -74,7 +75,10 @@ export function Characters({
       ) : (
         <div className="character-cards">
           {characters.map((c) => (
-            <article className="panel character-card" key={c.id}>
+            <article
+              className={`panel character-card ${c.id === workspace.activeCharacterId ? "is-active" : ""}`}
+              key={c.id}
+            >
               <div className="inline">
                 <div className="avatar tiny">
                   {c.sheet.portrait ? (
@@ -280,7 +284,11 @@ export function DraftEditor({
           {!character && (
             <ol className="steps">
               {["Образ", "Класс", "История"].map((x, i) => (
-                <li key={x} className={step === i + 1 ? "current" : ""}>
+                <li
+                  key={x}
+                  className={step === i + 1 ? "current" : ""}
+                  aria-current={step === i + 1 ? "step" : undefined}
+                >
                   <span>{i + 1}</span>
                   {x}
                 </li>
