@@ -81,8 +81,8 @@ export function Characters({
             >
               <div className="inline">
                 <div className="avatar tiny">
-                  {c.sheet.portrait ? (
-                    <img src={c.sheet.portrait} width="42" height="48" alt="" />
+                  {c.build.portrait ? (
+                    <img src={c.build.portrait} width="42" height="48" alt="" />
                   ) : (
                     <Feather size={20} />
                   )}
@@ -94,11 +94,11 @@ export function Characters({
                   <span className="active-label">Выбран</span>
                 )}
               </div>
-              <h2>{c.name}</h2>
+              <h2>{c.build.name}</h2>
               <p>
-                {c.ancestry}
+                {c.build.ancestry}
                 <br />
-                <span className="muted">{c.className}</span>
+                <span className="muted">{c.build.className}</span>
               </p>
               <p className="hint">
                 {c.kind === "demo"
@@ -136,7 +136,7 @@ export function Characters({
                       <ChevronRight size={16} />
                     </button>
                     <button
-                      aria-label={`В архив: ${c.name}`}
+                      aria-label={`В архив: ${c.build.name}`}
                       title="В архив — можно восстановить"
                       onClick={() =>
                         void save(
@@ -194,10 +194,14 @@ export function DraftEditor({
   onDirty: (dirty: boolean) => void;
 }) {
   const [baseline] = useState(character);
-  const [name, setName] = useState(character?.name ?? "");
-  const [ancestry, setAncestry] = useState(character?.ancestry ?? "Человек");
-  const [className, setClass] = useState(character?.className ?? "Волшебник");
-  const [lore, setLore] = useState(character?.sheet.lore ?? "");
+  const [name, setName] = useState(character?.build.name ?? "");
+  const [ancestry, setAncestry] = useState(
+    character?.build.ancestry ?? "Человек",
+  );
+  const [className, setClass] = useState(
+    character?.build.className ?? "Волшебник",
+  );
+  const [lore, setLore] = useState(character?.build.lore ?? "");
   const [step, setStep] = useState(character ? 3 : 1);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -220,10 +224,10 @@ export function DraftEditor({
           if (
             !current ||
             current.archivedAt ||
-            current.name !== baseline?.name ||
-            current.ancestry !== baseline?.ancestry ||
-            current.className !== baseline?.className ||
-            current.sheet.lore !== baseline?.sheet.lore
+            current.build.name !== baseline?.build.name ||
+            current.build.ancestry !== baseline?.build.ancestry ||
+            current.build.className !== baseline?.build.className ||
+            current.build.lore !== baseline?.build.lore
           )
             throw new Error("Черновик изменился в другой вкладке.");
           return {
@@ -232,10 +236,13 @@ export function DraftEditor({
               c.id === id
                 ? {
                     ...c,
-                    name: name.trim(),
-                    ancestry: ancestry.trim(),
-                    className: className.trim(),
-                    sheet: { ...c.sheet, lore },
+                    build: {
+                      ...c.build,
+                      name: name.trim(),
+                      ancestry: ancestry.trim(),
+                      className: className.trim(),
+                      lore,
+                    },
                   }
                 : c,
             ),
@@ -249,10 +256,7 @@ export function DraftEditor({
             ...s.characters,
             {
               ...draft,
-              sheet: {
-                ...draft.sheet,
-                lore,
-              },
+              build: { ...draft.build, lore },
             },
           ],
         };

@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { initialWorkspace, damage } from "./model";
+import { damage } from "./model";
+import { initialLegacyWorkspace as initialWorkspace } from "./test-fixtures";
+import { decodeBackup, migrateLegacy } from "./migrations";
 import {
   activeCharacter,
   appWorkspaceSchema,
   archiveCharacter,
-  decodeBackup,
   encodeBackup,
   initialAppWorkspace,
   makeDraft,
-  migrateLegacy,
   restoreCharacter,
   selectCharacter,
-  updateSheet,
+  updateCharacter,
 } from "./workspace";
 const draft = () =>
   makeDraft({
@@ -20,7 +20,7 @@ const draft = () =>
     ancestry: "Эльф",
     className: "Волшебник",
   });
-describe("Версия 2 — перенос и резервные копии", () => {
+describe("Версия 3 — перенос и резервные копии", () => {
   it("переносит весь лист, записи и черновики, не восстанавливая ячейки", () => {
     const legacy = {
       ...initialWorkspace,
@@ -53,18 +53,20 @@ describe("Версия 2 — перенос и резервные копии", (
     expect(moved.characters).toHaveLength(2);
     expect(moved.notes).toEqual(legacy.notes);
     expect(moved.metric).toBe(true);
-    expect(moved.characters[0].sheet).toEqual({
+    expect(moved.characters[0].runtime).toEqual({
       hp: 12,
-      maxHp: 30,
       tempHp: 5,
       slotsRemaining: 0,
-      lore: "История",
-      portrait: legacy.portrait,
       inventory: legacy.inventory,
     });
+    expect(moved.characters[0].build).toMatchObject({
+      maxHp: 30,
+      lore: "История",
+      portrait: legacy.portrait,
+    });
     expect(moved.characters[1].kind).toBe("draft");
-    expect(moved.characters[1].name).toBe("Элиан");
-    expect(moved.characters[1].sheet.lore).toBe("");
+    expect(moved.characters[1].build.name).toBe("Элиан");
+    expect(moved.characters[1].build.lore).toBe("");
     expect(decodeBackup(JSON.stringify(legacy))).toEqual(moved);
   });
   it("сохраняет повторявшиеся ID старых черновиков как разные записи", () => {
@@ -72,7 +74,7 @@ describe("Версия 2 — перенос и резервные копии", (
     const moved = migrateLegacy({ ...initialWorkspace, drafts: [d, d] });
     expect(new Set(moved.characters.map((c) => c.id)).size).toBe(3);
   });
-  it("версия 2 проходит экспорт и импорт вместе с архивом", () => {
+  it("версия 3 проходит экспорт и импорт вместе с архивом", () => {
     const s = archiveCharacter(
       {
         ...initialAppWorkspace(),
@@ -83,7 +85,7 @@ describe("Версия 2 — перенос и резервные копии", (
     expect(decodeBackup(encodeBackup(s))).toEqual(s);
   });
   it("отклоняет неизвестные версии", () =>
-    expect(() => decodeBackup('{"version":3}')).toThrow());
+    expect(() => decodeBackup('{"version":4}')).toThrow());
   it("отклоняет дублирующиеся ID", () => {
     const s = initialAppWorkspace();
     expect(() =>
@@ -108,7 +110,7 @@ describe("Версия 2 — перенос и резервные копии", (
   });
   it("отклоняет испорченные хиты внутри вложенного листа", () => {
     const s = initialAppWorkspace();
-    s.characters[0].sheet.hp = 31;
+    s.characters[0].runtime.hp = 31;
     expect(() => decodeBackup(JSON.stringify(s))).toThrow();
   });
 });
@@ -118,8 +120,11 @@ describe("Несколько персонажей", () => {
       ...initialAppWorkspace(),
       characters: [...initialAppWorkspace().characters, draft()],
     };
-    const changed = updateSheet(s, "gu-chen-demo", (v) => damage(v, 5));
-    expect(changed.characters[0].sheet.hp).toBe(25);
+    const changed = updateCharacter(s, "gu-chen-demo", (v) => ({
+      ...v,
+      runtime: damage(v.runtime, 5),
+    }));
+    expect(changed.characters[0].runtime.hp).toBe(25);
     expect(changed.characters[1]).toEqual(s.characters[1]);
   });
   it("запись захватывает исходного персонажа, даже если выбор изменился", () => {
@@ -130,13 +135,13 @@ describe("Несколько персонажей", () => {
       },
       "test",
     );
-    const changed = updateSheet(s, "gu-chen-demo", (v) => ({
+    const changed = updateCharacter(s, "gu-chen-demo", (v) => ({
       ...v,
-      lore: "Новая история",
+      build: { ...v.build, lore: "Новая история" },
     }));
     expect(changed.activeCharacterId).toBe("test");
-    expect(changed.characters[0].sheet.lore).toBe("Новая история");
-    expect(changed.characters[1].sheet.lore).toBe("");
+    expect(changed.characters[0].build.lore).toBe("Новая история");
+    expect(changed.characters[1].build.lore).toBe("");
   });
   it("архив сохраняет данные и выбирает следующего", () => {
     const s = {
@@ -145,7 +150,7 @@ describe("Несколько персонажей", () => {
     };
     const archived = archiveCharacter(s, "gu-chen-demo");
     expect(archived.activeCharacterId).toBe("test");
-    expect(archived.characters[0].sheet).toEqual(s.characters[0].sheet);
+    expect(archived.characters[0].runtime).toEqual(s.characters[0].runtime);
     const restored = restoreCharacter(archived, "gu-chen-demo");
     expect(restored.characters[0]).toEqual(s.characters[0]);
     expect(restored.activeCharacterId).toBe("test");
@@ -168,6 +173,9 @@ describe("Несколько персонажей", () => {
 it("не записывает отложенное изменение в архивированного персонажа", () => {
   const s = archiveCharacter(initialAppWorkspace(), "gu-chen-demo");
   expect(() =>
-    updateSheet(s, "gu-chen-demo", (v) => ({ ...v, lore: "Поздняя запись" })),
+    updateCharacter(s, "gu-chen-demo", (v) => ({
+      ...v,
+      build: { ...v.build, lore: "Поздняя запись" },
+    })),
   ).toThrow();
 });

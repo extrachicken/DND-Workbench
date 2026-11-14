@@ -1,12 +1,8 @@
 import { describe, expect, it } from "vitest";
-import {
-  damage,
-  heal,
-  initialWorkspace,
-  modifier,
-  parseBackup,
-  rollDie,
-} from "./model";
+import { damage, heal, modifier, rollDie, spendSlot } from "./model";
+
+import { initialAppWorkspace } from "./workspace";
+const initialWorkspace = initialAppWorkspace().characters[0].runtime;
 
 describe("Игровые ресурсы", () => {
   it("расходует временные хиты до текущих", () => {
@@ -22,13 +18,13 @@ describe("Игровые ресурсы", () => {
   it("ограничивает здоровье нулём", () =>
     expect(damage(initialWorkspace, 100).hp).toBe(0));
   it("лечение не превышает максимум и не меняет временные хиты", () => {
-    const next = heal({ ...initialWorkspace, hp: 25, tempHp: 5 }, 20);
+    const next = heal({ ...initialWorkspace, hp: 25, tempHp: 5 }, 20, 30);
     expect(next.hp).toBe(30);
     expect(next.tempHp).toBe(5);
   });
   it.each([-1, NaN, 1.5])("отклоняет некорректное количество %s", (n) => {
     expect(() => damage(initialWorkspace, n)).toThrow();
-    expect(() => heal(initialWorkspace, n)).toThrow();
+    expect(() => heal(initialWorkspace, n, 30)).toThrow();
   });
   it("не меняет исходный объект и остаток ячеек", () => {
     const source = { ...initialWorkspace, slotsRemaining: 0 };
@@ -40,34 +36,6 @@ describe("Игровые ресурсы", () => {
     expect(modifier(7)).toBe(-2);
     expect(modifier(20)).toBe(5);
   });
-});
-describe("Резервная копия", () => {
-  it("сохраняет нулевой остаток ячеек при экспорте и импорте", () => {
-    const s = { ...initialWorkspace, slotsRemaining: 0 };
-    expect(parseBackup(JSON.stringify(s))).toEqual(s);
-  });
-  it("отличает неизвестный остаток от нуля", () =>
-    expect(
-      parseBackup(JSON.stringify(initialWorkspace)).slotsRemaining,
-    ).toBeNull());
-  it.each([
-    { version: 2 },
-    { slotsRemaining: 3 },
-    { hp: 31 },
-    { tempHp: -1 },
-    { portrait: "javascript:alert(1)" },
-    {
-      notes: [
-        { id: "1", title: "t", campaign: "c", text: "", date: "invalid" },
-      ],
-    },
-  ])("отклоняет недопустимые данные %j", (patch) =>
-    expect(() =>
-      parseBackup(JSON.stringify({ ...initialWorkspace, ...patch })),
-    ).toThrow(),
-  );
-  it("отклоняет слишком большой файл", () =>
-    expect(() => parseBackup(" ".repeat(5_000_001))).toThrow());
 });
 describe("Кубики", () => {
   it.each([4, 6, 8, 10, 12, 20])(
@@ -84,3 +52,14 @@ describe("Кубики", () => {
   it("отклоняет недопустимое число граней", () =>
     expect(() => rollDie(0)).toThrow());
 });
+
+it.each([null, 0, 1, 2])(
+  "расход ячейки не превращает неизвестный остаток %s в известный",
+  (remaining) => {
+    const source = { ...initialWorkspace, slotsRemaining: remaining };
+    expect(spendSlot(source).slotsRemaining).toBe(
+      remaining === null ? null : Math.max(0, remaining - 1),
+    );
+    expect(source.slotsRemaining).toBe(remaining);
+  },
+);

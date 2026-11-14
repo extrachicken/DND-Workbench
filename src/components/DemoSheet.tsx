@@ -13,19 +13,14 @@ import {
   Upload,
   Zap,
 } from "lucide-react";
-import {
-  damage,
-  heal,
-  modifier,
-  rollDie,
-  signed,
-  type Workspace,
-} from "../model";
+import { damage, heal, rollDie, signed, spendSlot } from "../model";
+import type { Character } from "../character";
+import { deriveDemoStats } from "../demo";
 import { Empty } from "./Empty";
 import { findSpells, SpellList, SpellSearch } from "./Spells";
 
 export type SaveSheet = (
-  update: (s: Workspace) => Workspace,
+  update: (s: Character) => Character,
   message?: string,
 ) => Promise<boolean>;
 export type SheetControls = {
@@ -41,24 +36,17 @@ export type SheetControls = {
   setPhysical: (value: string) => void;
 };
 
-const stats = [
-  ["Сила", 4],
-  ["Ловкость", 16],
-  ["Телосложение", 17],
-  ["Интеллект", 20],
-  ["Мудрость", 14],
-  ["Харизма", 12],
-] as const;
-
 export function DemoSheet({
-  s,
+  character,
+  metric,
   save,
   controls,
   query,
   setQuery,
   setError,
 }: {
-  s: Workspace;
+  character: Character;
+  metric: boolean;
   save: SaveSheet;
   controls: SheetControls;
   query: string;
@@ -77,6 +65,19 @@ export function DemoSheet({
     physical,
     setPhysical,
   } = controls;
+  const { build, runtime: s } = character;
+  const derived = deriveDemoStats(character);
+  if (!derived) return null;
+  const saveRuntime = (
+    update: (
+      value: Character["runtime"],
+      current: Character,
+    ) => Character["runtime"],
+    message?: string,
+  ) => save((c) => ({ ...c, runtime: update(c.runtime, c) }), message);
+  const saveBuild = (
+    update: (value: Character["build"]) => Character["build"],
+  ) => save((c) => ({ ...c, build: update(c.build) }));
   const number = Number(amount);
   const amountValid =
     amount.trim() !== "" &&
@@ -94,7 +95,7 @@ export function DemoSheet({
     }
     const reader = new FileReader();
     reader.onload = () =>
-      void save((v) => ({ ...v, portrait: String(reader.result) }));
+      void saveBuild((v) => ({ ...v, portrait: String(reader.result) }));
     reader.onerror = () =>
       setError("Не удалось прочитать изображение. Выберите файл ещё раз.");
     reader.readAsDataURL(file);
@@ -118,17 +119,17 @@ export function DemoSheet({
       </a>
       <section className="character-banner">
         <div className="avatar portrait">
-          {s.portrait ? (
+          {build.portrait ? (
             <img
-              src={s.portrait}
+              src={build.portrait}
               width="112"
               height="132"
-              alt="Портрет Гу Ченя"
+              alt={`Портрет ${build.name}`}
             />
           ) : (
             <>
               <Feather size={38} />
-              <span>ГУ ЧЕНЬ</span>
+              <span>{build.name.toLocaleUpperCase("ru")}</span>
             </>
           )}
         </div>
@@ -137,10 +138,10 @@ export function DemoSheet({
             <span className="eyebrow">ХРАНИТЕЛЬ ДУШ</span>
             <span className="tag">Учебная копия</span>
           </div>
-          <h2>Гу Чень</h2>
+          <h2>{build.name}</h2>
           <p>
-            Человек · Мудрец <span className="dot-separator">·</span> Савант 3 /
-            Волшебник 1
+            {build.ancestry} · Мудрец <span className="dot-separator">·</span>{" "}
+            {build.className}
           </p>
           <div className="inline">
             <span className="badge">
@@ -151,8 +152,8 @@ export function DemoSheet({
         </div>
         <div className="level">
           <span>УРОВЕНЬ</span>
-          <strong>4</strong>
-          <small>2 700 опыта</small>
+          <strong>{derived.level}</strong>
+          <small>{derived.experience.toLocaleString("ru")} опыта</small>
         </div>
       </section>
       <div className="sheet-tabs" role="group" aria-label="Разделы листа">
@@ -170,16 +171,18 @@ export function DemoSheet({
       {tab === "Обзор" && (
         <>
           <div className="stat-grid">
-            {stats.map(([name, value]) => (
-              <article
-                className={`stat ${name === "Интеллект" ? "prime" : ""}`}
-                key={name}
-              >
-                <span>{name}</span>
-                <strong>{signed(modifier(value))}</strong>
-                <small>{value}</small>
-              </article>
-            ))}
+            {derived.abilities.map(
+              ({ name, score: value, modifier: bonus }) => (
+                <article
+                  className={`stat ${name === "Интеллект" ? "prime" : ""}`}
+                  key={name}
+                >
+                  <span>{name}</span>
+                  <strong>{signed(bonus)}</strong>
+                  <small>{value}</small>
+                </article>
+              ),
+            )}
           </div>
           <div className="play-grid">
             <div className="primary-column">
@@ -193,7 +196,7 @@ export function DemoSheet({
                 <div className="health-display">
                   <div>
                     <strong>{s.hp}</strong>
-                    <span> / {s.maxHp}</span>
+                    <span> / {derived.maxHp}</span>
                     <small>текущие хиты</small>
                   </div>
                   <label className="temp">
@@ -208,13 +211,13 @@ export function DemoSheet({
                       onChange={(e) => {
                         const n = Number(e.target.value);
                         if (Number.isInteger(n) && n >= 0 && n <= 9999)
-                          void save((v) => ({ ...v, tempHp: n }));
+                          void saveRuntime((v) => ({ ...v, tempHp: n }));
                       }}
                     />
                   </label>
                 </div>
                 <div className="hp-track">
-                  <div style={{ width: `${(s.hp / s.maxHp) * 100}%` }} />
+                  <div style={{ width: `${(s.hp / derived.maxHp) * 100}%` }} />
                 </div>
                 <div className="health-actions">
                   <label className="amount-label">
@@ -234,7 +237,7 @@ export function DemoSheet({
                     className="danger"
                     disabled={!amountValid}
                     onClick={() =>
-                      void save((v) => damage(v, number), "Урон учтён")
+                      void saveRuntime((v) => damage(v, number), "Урон учтён")
                     }
                   >
                     <Minus size={16} />
@@ -244,7 +247,10 @@ export function DemoSheet({
                     className="healing"
                     disabled={!amountValid}
                     onClick={() =>
-                      void save((v) => heal(v, number), "Лечение учтено")
+                      void saveRuntime(
+                        (v, current) => heal(v, number, current.build.maxHp),
+                        "Лечение учтено",
+                      )
                     }
                   >
                     <Plus size={16} />
@@ -264,7 +270,7 @@ export function DemoSheet({
                   <div>
                     <strong className="resource-value">
                       {s.slotsRemaining === null ? "?" : s.slotsRemaining}
-                      <span> / 2</span>
+                      <span> / {derived.slotsMax}</span>
                     </strong>
                     <p className="hint">
                       {s.slotsRemaining === null
@@ -273,14 +279,17 @@ export function DemoSheet({
                     </p>
                   </div>
                   <div className="slot-pips">
-                    {[0, 1, 2].map((n) => (
+                    {Array.from(
+                      { length: derived.slotsMax + 1 },
+                      (_, n) => n,
+                    ).map((n) => (
                       <button
                         aria-label={`${n} ячеек осталось`}
                         aria-pressed={s.slotsRemaining === n}
                         className={s.slotsRemaining === n ? "chosen" : ""}
                         key={n}
                         onClick={() =>
-                          void save((v) => ({
+                          void saveRuntime((v) => ({
                             ...v,
                             slotsRemaining: n,
                           }))
@@ -298,16 +307,7 @@ export function DemoSheet({
                       s.slotsRemaining === null || s.slotsRemaining === 0
                     }
                     onClick={() =>
-                      void save(
-                        (v) => ({
-                          ...v,
-                          slotsRemaining: Math.max(
-                            0,
-                            (v.slotsRemaining ?? 0) - 1,
-                          ),
-                        }),
-                        "Ячейка потрачена",
-                      )
+                      void saveRuntime(spendSlot, "Ячейка потрачена")
                     }
                   >
                     Потратить ячейку <ChevronRight size={15} />
@@ -326,20 +326,20 @@ export function DemoSheet({
                     Расследование
                     <small>Интеллект · компетентность</small>
                   </span>
-                  <strong>+9</strong>
+                  <strong>{signed(derived.investigation)}</strong>
                 </div>
                 <div className="skill-row">
                   <span>
                     Восприятие<small>Мудрость · владение</small>
                   </span>
-                  <strong>+4</strong>
+                  <strong>{signed(derived.perception)}</strong>
                 </div>
                 <div className="skill-row">
                   <span>
                     Пассивное восприятие
                     <small>Включая «Внимательный»</small>
                   </span>
-                  <strong>19</strong>
+                  <strong>{derived.passivePerception}</strong>
                 </div>
                 <details>
                   <summary>Черты и происхождение бонусов</summary>
@@ -355,22 +355,28 @@ export function DemoSheet({
               <section className="combat-grid">
                 <div>
                   <Shield size={20} />
-                  <strong>16</strong>
+                  <strong>{derived.armorClass}</strong>
                   <span>Класс доспеха</span>
                 </div>
                 <div>
                   <Zap size={20} />
-                  <strong>+8</strong>
+                  <strong>{signed(derived.initiative)}</strong>
                   <span>Инициатива</span>
                 </div>
                 <div>
                   <ChevronRight size={20} />
-                  <strong>{s.metric ? "9,14" : "30"}</strong>
-                  <span>{s.metric ? "Скорость, м" : "Скорость, фт"}</span>
+                  <strong>
+                    {metric
+                      ? (derived.speedFeet * 0.3048).toLocaleString("ru", {
+                          maximumFractionDigits: 2,
+                        })
+                      : derived.speedFeet}
+                  </strong>
+                  <span>{metric ? "Скорость, м" : "Скорость, фт"}</span>
                 </div>
                 <div>
                   <Check size={20} />
-                  <strong>+2</strong>
+                  <strong>{signed(derived.proficiency)}</strong>
                   <span>Мастерство</span>
                 </div>
               </section>
@@ -480,7 +486,7 @@ export function DemoSheet({
               const f = e.currentTarget;
               const name = String(new FormData(f).get("item") || "").trim();
               if (name) {
-                void save((v) => ({
+                void saveRuntime((v) => ({
                   ...v,
                   inventory: [
                     ...v.inventory,
@@ -524,7 +530,7 @@ export function DemoSheet({
                     type="checkbox"
                     checked={item.equipped}
                     onChange={() =>
-                      void save((v) => ({
+                      void saveRuntime((v) => ({
                         ...v,
                         inventory: v.inventory.map((i) =>
                           i.id === item.id
@@ -546,7 +552,7 @@ export function DemoSheet({
                     aria-label={`Потратить ${item.name}`}
                     disabled={item.quantity === 0}
                     onClick={() =>
-                      void save((v) => ({
+                      void saveRuntime((v) => ({
                         ...v,
                         inventory: v.inventory.map((i) =>
                           i.id === item.id
@@ -563,7 +569,7 @@ export function DemoSheet({
                     aria-label={`Добавить ${item.name}`}
                     disabled={item.quantity >= 9999}
                     onClick={() =>
-                      void save((v) => ({
+                      void saveRuntime((v) => ({
                         ...v,
                         inventory: v.inventory.map((i) =>
                           i.id === item.id
@@ -602,12 +608,12 @@ export function DemoSheet({
           <label>
             История персонажа
             <textarea
-              key={s.version}
-              defaultValue={s.lore}
+              key={character.id}
+              defaultValue={build.lore}
               rows={12}
               onChange={(e) => {
                 const text = e.target.value;
-                void save((v) => ({ ...v, lore: text }));
+                void saveBuild((v) => ({ ...v, lore: text }));
               }}
               maxLength={30000}
             />

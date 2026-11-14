@@ -1,7 +1,10 @@
+import { useMemo } from "react";
 import { Plus, ScrollText } from "lucide-react";
 import type { AppWorkspace } from "../workspace";
 import type { SaveWorkspace } from "./Characters";
 import { Empty } from "./Empty";
+
+const noteDate = new Intl.DateTimeFormat("ru", { dateStyle: "medium" });
 
 export function Journal({
   workspace,
@@ -14,6 +17,15 @@ export function Journal({
   noteId: string;
   setNoteId: (id: string) => void;
 }) {
+  const groups = useMemo(() => {
+    const result = new Map<string, AppWorkspace["notes"]>();
+    for (const note of workspace.notes) {
+      const group = result.get(note.campaign);
+      if (group) group.push(note);
+      else result.set(note.campaign, [note]);
+    }
+    return [...result.entries()];
+  }, [workspace.notes]);
   const activeNote =
     workspace.notes.find((n) => n.id === noteId) || workspace.notes[0];
   return (
@@ -58,29 +70,23 @@ export function Journal({
       ) : (
         <div className="journal-grid">
           <aside className="panel note-list">
-            {[...new Set(workspace.notes.map((n) => n.campaign))].map((c) => (
+            {groups.map(([c, notes]) => (
               <div key={c}>
                 <div className="eyebrow">{c}</div>
-                {workspace.notes
-                  .filter((n) => n.campaign === c)
-                  .map((n) => (
-                    <button
-                      key={n.id}
-                      aria-pressed={activeNote?.id === n.id}
-                      className={activeNote?.id === n.id ? "selected" : ""}
-                      onClick={() => setNoteId(n.id)}
-                    >
-                      <ScrollText size={16} />
-                      <span>
-                        {n.title}
-                        <small>
-                          {new Intl.DateTimeFormat("ru", {
-                            dateStyle: "medium",
-                          }).format(new Date(n.date))}
-                        </small>
-                      </span>
-                    </button>
-                  ))}
+                {notes.map((n) => (
+                  <button
+                    key={n.id}
+                    aria-pressed={activeNote?.id === n.id}
+                    className={activeNote?.id === n.id ? "selected" : ""}
+                    onClick={() => setNoteId(n.id)}
+                  >
+                    <ScrollText size={16} />
+                    <span>
+                      {n.title}
+                      <small>{noteDate.format(new Date(n.date))}</small>
+                    </span>
+                  </button>
+                ))}
               </div>
             ))}
           </aside>
@@ -94,13 +100,12 @@ export function Journal({
                   maxLength={150}
                   defaultValue={activeNote.title}
                   onBlur={(e) => {
-                    if (e.target.value.trim())
+                    const text = e.target.value.trim();
+                    if (text)
                       void save((v) => ({
                         ...v,
                         notes: v.notes.map((n) =>
-                          n.id === activeNote.id
-                            ? { ...n, title: e.target.value.trim() }
-                            : n,
+                          n.id === activeNote.id ? { ...n, title: text } : n,
                         ),
                       }));
                   }}
@@ -113,13 +118,12 @@ export function Journal({
                   maxLength={100}
                   defaultValue={activeNote.campaign}
                   onBlur={(e) => {
-                    if (e.target.value.trim())
+                    const text = e.target.value.trim();
+                    if (text)
                       void save((v) => ({
                         ...v,
                         notes: v.notes.map((n) =>
-                          n.id === activeNote.id
-                            ? { ...n, campaign: e.target.value.trim() }
-                            : n,
+                          n.id === activeNote.id ? { ...n, campaign: text } : n,
                         ),
                       }));
                   }}

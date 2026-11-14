@@ -13,11 +13,10 @@ import {
 import { db, initialize, changeWorkspace } from "./db";
 import {
   activeCharacter,
-  sheetView,
-  updateSheet,
+  updateCharacter,
   type AppWorkspace,
 } from "./workspace";
-import type { Workspace } from "./model";
+import type { Character } from "./character";
 import { Characters, DraftEditor } from "./components/Characters";
 import { DemoSheet } from "./components/DemoSheet";
 import { Journal } from "./components/Journal";
@@ -39,7 +38,7 @@ export function App() {
     window.scrollTo(0, 0);
   }, [page]);
   const data = useLiveQuery(() => db.documents.get("local"));
-  const recovery = useLiveQuery(() => db.recovery.toArray());
+
   const [cached, setCached] = useState(false);
   useEffect(() => {
     if (import.meta.env.PROD && "serviceWorker" in navigator)
@@ -95,11 +94,8 @@ export function App() {
     );
   const workspace = data.data;
   const character = activeCharacter(workspace);
-  async function save(update: (s: Workspace) => Workspace, message?: string) {
-    return saveApp(
-      (v) => updateSheet(v, character?.id ?? null, update),
-      message,
-    );
+  async function save(update: (s: Character) => Character, message?: string) {
+    return saveApp((v) => updateCharacter(v, character!.id, update), message);
   }
   return (
     <div className="app-shell">
@@ -154,8 +150,8 @@ export function App() {
                   <Feather size={17} />
                 </div>
                 <div>
-                  <strong>{character.name}</strong>
-                  <small>{character.className}</small>
+                  <strong>{character.build.name}</strong>
+                  <small>{character.build.className}</small>
                 </div>
               </a>
               <span className="tag">
@@ -212,7 +208,8 @@ export function App() {
           )}
           {page === "character" && character?.kind === "demo" && (
             <DemoSheet
-              s={sheetView(workspace)}
+              character={character}
+              metric={workspace.metric}
               save={save}
               controls={{
                 tab,
@@ -251,7 +248,6 @@ export function App() {
             <Settings
               workspace={workspace}
               save={saveApp}
-              recovery={recovery}
               offlineReady={offlineReady || cached}
               needRefresh={needRefresh}
               updateServiceWorker={updateServiceWorker}

@@ -1,7 +1,8 @@
+import { useLiveQuery } from "dexie-react-hooks";
+import { decodeBackup } from "../migrations";
 import { Download, Upload } from "lucide-react";
-import { replaceWorkspace, type RecoverySnapshot } from "../db";
+import { db, replaceWorkspace } from "../db";
 import {
-  decodeBackup,
   encodeBackup,
   MAX_BACKUP_BYTES,
   type AppWorkspace,
@@ -11,7 +12,6 @@ import type { SaveWorkspace } from "./Characters";
 export function Settings({
   workspace,
   save,
-  recovery,
   offlineReady,
   needRefresh,
   updateServiceWorker,
@@ -20,13 +20,13 @@ export function Settings({
 }: {
   workspace: AppWorkspace;
   save: SaveWorkspace;
-  recovery: RecoverySnapshot[] | undefined;
   offlineReady: boolean;
   needRefresh: boolean;
   updateServiceWorker: (reloadPage?: boolean) => Promise<void>;
   setStatus: (message: string) => void;
   setError: (message: string) => void;
 }) {
+  const recovery = useLiveQuery(() => db.recovery.toArray());
   function downloadJson(raw: string, filename: string) {
     const url = URL.createObjectURL(
       new Blob([raw], { type: "application/json" }),
@@ -66,7 +66,7 @@ export function Settings({
       setError("");
     } catch {
       setError(
-        "Не удалось восстановить копию. Нужен JSON Workbench версии 1 или 2 до 50 МБ и достаточно места в браузере. Исходные данные сохранены.",
+        "Не удалось восстановить копию. Нужен JSON Workbench версии 1, 2 или 3 до 50 МБ и достаточно места в браузере. Исходные данные сохранены.",
       );
     }
   }
@@ -102,13 +102,13 @@ export function Settings({
             />
           </label>
           <p className="hint">
-            JSON · версия 2 · до 50 МБ · импорт версии 1 поддерживается
+            JSON · версия 3 · до 50 МБ · импорт версий 1 и 2 поддерживается
           </p>
         </section>
         <section className="panel">
           <h3>Точки восстановления</h3>
           <p className="muted">
-            Снимок перед переходом с версии 0.1 и состояние перед последним
+            Снимки перед обновлениями формата и состояние перед последним
             импортом. Скачайте нужную копию и восстановите её через импорт. Они
             хранятся в этом браузере и не заменяют внешний бэкап.
           </p>
@@ -118,7 +118,9 @@ export function Settings({
                 <span>
                   {r.reason === "migration-v1"
                     ? "До перехода на несколько персонажей"
-                    : "До последнего импорта"}
+                    : r.reason === "migration-v2"
+                      ? "До разделения сборки и состояния"
+                      : "До последнего импорта"}
                   <small>
                     {new Intl.DateTimeFormat("ru", {
                       dateStyle: "medium",
@@ -127,10 +129,10 @@ export function Settings({
                   </small>
                 </span>
                 <button
-                  aria-label={`Скачать снимок: ${r.reason === "migration-v1" ? "до миграции" : "до импорта"}`}
+                  aria-label={`Скачать снимок: ${r.reason.startsWith("migration-") ? "до миграции" : "до импорта"}`}
                   onClick={() =>
                     downloadJson(
-                      JSON.stringify(r.data, null, 2),
+                      JSON.stringify(r.data),
                       `workbench-recovery-${r.id}.dndwb.json`,
                     )
                   }

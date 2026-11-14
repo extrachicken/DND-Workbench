@@ -1,31 +1,13 @@
 import { z } from "zod";
-import {
-  initialWorkspace,
-  workspaceSchema,
-  type Workspace as LegacyWorkspace,
-} from "./model";
-
+import { characterSchema, notesSchema, type Character } from "./character";
+export type { Character } from "./character";
 const id = z.string().min(1).max(100);
-const characterSchema = z.object({
-  id,
-  name: z.string().trim().min(1).max(80),
-  ancestry: z.string().trim().min(1).max(80),
-  className: z.string().trim().min(1).max(80),
-  kind: z.enum(["demo", "draft"]),
-  archivedAt: z.iso.datetime().nullable(),
-  // The first gameplay sheet is still a limited fixture. Drafts do not expose it.
-  sheet: z
-    .object(workspaceSchema.shape)
-    .omit({ version: true, notes: true, drafts: true, metric: true })
-    .refine((s) => s.hp <= s.maxHp, "Текущие хиты превышают максимум"),
-});
-export type Character = z.infer<typeof characterSchema>;
 export const appWorkspaceSchema = z
   .object({
-    version: z.literal(2),
+    version: z.literal(3),
     activeCharacterId: id.nullable(),
     characters: z.array(characterSchema).max(101),
-    notes: workspaceSchema.shape.notes,
+    notes: notesSchema,
     metric: z.boolean(),
   })
   .superRefine((s, context) => {
@@ -51,57 +33,43 @@ export const appWorkspaceSchema = z
 export type AppWorkspace = z.infer<typeof appWorkspaceSchema>;
 export const MAX_BACKUP_BYTES = 50_000_000;
 
-export function migrateLegacy(raw: unknown): AppWorkspace {
-  const legacy = workspaceSchema.parse(raw);
-  const { version: _version, notes, drafts, metric, ...sheet } = legacy;
-  return appWorkspaceSchema.parse({
-    version: 2,
-    activeCharacterId: "gu-chen-demo",
-    metric,
-    notes,
-    characters: [
-      {
-        id: "gu-chen-demo",
-        name: "Гу Чень",
-        ancestry: "Человек",
-        className: "Савант 3 / Волшебник 1",
-        kind: "demo",
-        archivedAt: null,
-        sheet,
-      },
-      ...drafts.map((draft, index) =>
-        makeDraft({
-          ...draft,
-          // Legacy IDs were not required to be unique. Assign migration IDs without losing entries.
-          id: `legacy-draft-${index}`,
-          name: draft.name.trim() || "Без имени",
-          ancestry: draft.ancestry.trim() || "Не выбрано",
-          className: draft.className.trim() || "Не выбран",
-        }),
-      ),
-    ],
-  });
-}
 export function makeDraft(
-  profile: Pick<Character, "id" | "name" | "ancestry" | "className">,
+  profile: Pick<Character["build"], "name" | "ancestry" | "className"> & {
+    id: string;
+  },
 ): Character {
+  const { id, ...identity } = profile;
   return characterSchema.parse({
-    ...profile,
+    id,
     kind: "draft",
     archivedAt: null,
-    sheet: {
-      hp: 0,
-      maxHp: 1,
-      tempHp: 0,
-      slotsRemaining: null,
-      lore: "",
-      portrait: "",
-      inventory: [],
-    },
+    build: { ...identity, lore: "", portrait: "", maxHp: 1 },
+    runtime: { hp: 0, tempHp: 0, slotsRemaining: null, inventory: [] },
   });
 }
 export function initialAppWorkspace(): AppWorkspace {
-  return migrateLegacy(structuredClone(initialWorkspace));
+  return {
+    version: 3,
+    activeCharacterId: "gu-chen-demo",
+    metric: false,
+    notes: [],
+    characters: [
+      {
+        id: "gu-chen-demo",
+        kind: "demo",
+        archivedAt: null,
+        build: {
+          name: "Гу Чень",
+          ancestry: "Человек",
+          className: "Савант 3 / Волшебник 1",
+          maxHp: 30,
+          portrait: "",
+          lore: "Гу Чень — Хранитель душ. Его настоящее имя — Синь Дзин. За образом учёного скрывается агент двора Хань.\n\nЭто учебная копия. Дополните историю своими заметками.",
+        },
+        runtime: { hp: 30, tempHp: 0, slotsRemaining: null, inventory: [] },
+      },
+    ],
+  };
 }
 export function activeCharacter(s: AppWorkspace): Character | undefined {
   return s.characters.find(
@@ -147,65 +115,29 @@ export function restoreCharacter(
       s.activeCharacterId ?? characters.find((c) => !c.archivedAt)?.id ?? null,
   };
 }
-// Adapter isolates the original single-character prototype while its screens are decomposed.
-export function sheetView(s: AppWorkspace): LegacyWorkspace {
-  const character = activeCharacter(s);
-  return {
-    ...initialWorkspace,
-    ...character?.sheet,
-    version: 1,
-    notes: s.notes,
-    metric: s.metric,
-    drafts: [],
-  };
-}
-export function updateSheet(
+export function updateCharacter(
   s: AppWorkspace,
-  characterId: string | null,
-  update: (v: LegacyWorkspace) => LegacyWorkspace,
+  characterId: string,
+  update: (character: Character) => Pick<Character, "build" | "runtime">,
 ): AppWorkspace {
   const target = s.characters.find(
     (c) => c.id === characterId && !c.archivedAt,
   );
-  if (characterId !== null && !target) throw new Error("Персонаж недоступен");
-  const previous = {
-    ...initialWorkspace,
-    ...target?.sheet,
-    notes: s.notes,
-    metric: s.metric,
-    drafts: [],
-  };
-  const {
-    version: _version,
-    notes,
-    metric,
-    drafts: _drafts,
-    ...sheet
-  } = workspaceSchema.parse(update(previous));
+  if (!target) throw new Error("Персонаж недоступен");
+  const { build, runtime } = update(target);
   return {
     ...s,
-    notes,
-    metric,
     characters: s.characters.map((c) =>
-      c.id === target?.id ? { ...c, sheet } : c,
+      c.id === characterId ? { ...c, build, runtime } : c,
     ),
   };
 }
-export function decodeBackup(raw: string): AppWorkspace {
-  if (new TextEncoder().encode(raw).byteLength > MAX_BACKUP_BYTES)
-    throw new Error("Копия превышает 50 МБ");
-  const value: unknown = JSON.parse(raw);
-  if (
-    typeof value === "object" &&
-    value !== null &&
-    "version" in value &&
-    value.version === 1
-  )
-    return migrateLegacy(value);
-  return appWorkspaceSchema.parse(value);
-}
 export function encodeBackup(s: AppWorkspace): string {
-  const raw = JSON.stringify(appWorkspaceSchema.parse(s), null, 2);
+  return serializeBackup(appWorkspaceSchema.parse(s));
+}
+// Call only with an already validated workspace. Compact JSON is the export format.
+export function serializeBackup(s: AppWorkspace): string {
+  const raw = JSON.stringify(s);
   if (new TextEncoder().encode(raw).byteLength > MAX_BACKUP_BYTES)
     throw new Error("Копия превышает 50 МБ. Уменьшите портреты.");
   return raw;
