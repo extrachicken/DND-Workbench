@@ -25,7 +25,7 @@ export function spendSlot(s: RuntimeState): RuntimeState {
 }
 export const signed = (value: number) =>
   value >= 0 ? `+${value}` : `${value}`;
-export const modifier = (score: number) => Math.floor((score - 10) / 2);
+export { abilityModifier as modifier } from "./rules";
 export function rollDie(sides: number): number {
   // Rejection sampling prevents modulo bias.
   if (!Number.isInteger(sides) || sides < 2 || sides > 100)

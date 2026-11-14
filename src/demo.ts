@@ -1,16 +1,31 @@
 import type { Character } from "./character";
-import { modifier } from "./model";
+import {
+  abilityModifier,
+  initiative,
+  passiveCheck,
+  proficiencyBonus,
+  skillCheck,
+  type AbilityScores,
+} from "./rules";
 
 // Existing Gu Chen UI fixture, not a validated character-creation rules engine.
 // Source and unresolved decisions: docs/gu-chen-validation-case.md.
 const abilities = [
-  ["Сила", 4],
-  ["Ловкость", 16],
-  ["Телосложение", 17],
-  ["Интеллект", 20],
-  ["Мудрость", 14],
-  ["Харизма", 12],
+  ["Сила", "str"],
+  ["Ловкость", "dex"],
+  ["Телосложение", "con"],
+  ["Интеллект", "int"],
+  ["Мудрость", "wis"],
+  ["Харизма", "cha"],
 ] as const;
+const scores: AbilityScores = {
+  str: 4,
+  dex: 16,
+  con: 17,
+  int: 20,
+  wis: 14,
+  cha: 12,
+};
 export type DerivedStats = {
   abilities: { name: string; score: number; modifier: number }[];
   maxHp: number;
@@ -27,22 +42,31 @@ export type DerivedStats = {
 };
 export function deriveDemoStats(character: Character): DerivedStats | null {
   if (character.kind !== "demo") return null;
+  const level = 4;
+  const perception = skillCheck(scores, "perception", level, [
+    { source: "demo:quick-learning", rank: "proficient" },
+  ]);
   return {
-    abilities: abilities.map(([name, score]) => ({
+    abilities: abilities.map(([name, ability]) => ({
       name,
-      score,
-      modifier: modifier(score),
+      score: scores[ability],
+      modifier: abilityModifier(scores[ability]),
     })),
     maxHp: character.build.maxHp,
     slotsMax: 2,
-    level: 4,
+    level,
     experience: 2700,
     armorClass: 16,
-    initiative: 8,
+    initiative: initiative(scores.dex, [{ source: "demo:alert", value: 5 }])
+      .total,
     speedFeet: 30,
-    proficiency: 2,
-    investigation: 9,
-    perception: 4,
-    passivePerception: 19,
+    proficiency: proficiencyBonus(level),
+    investigation: skillCheck(scores, "investigation", level, [
+      { source: "demo:investigation-expertise", rank: "expertise" },
+    ]).total,
+    perception: perception.total,
+    passivePerception: passiveCheck(perception, {
+      bonuses: [{ source: "demo:observant", value: 5 }],
+    }).total,
   };
 }
