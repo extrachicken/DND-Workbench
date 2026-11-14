@@ -1690,3 +1690,55 @@ details button {
   color: var(--muted);
   margin-top: 7px;
 }
+
+.campaigns {
+  margin-bottom: 24px;
+}
+.campaign-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.campaign-heading h2 {
+  margin: 0;
+}
+.campaign-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.campaign-list button {
+  min-width: 0;
+  max-width: 100%;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.campaign-form {
+  margin-top: 20px;
+}
+.campaign-form fieldset {
+  min-width: 0;
+  margin: 0 0 16px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.campaign-form label {
+  margin-bottom: 12px;
+}
+.campaign-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 16px;
+}
+@media (max-width: 580px) {
+  .campaign-fields {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .campaign-form fieldset {
+    padding: 12px;
+  }
+}

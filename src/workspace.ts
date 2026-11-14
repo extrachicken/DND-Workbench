@@ -1,16 +1,43 @@
 import { z } from "zod";
-import { characterSchema, notesSchema, type Character } from "./character";
+import { characterSchema, type Character } from "./character";
+import { campaignSchema, type Campaign } from "./campaign";
 export type { Character } from "./character";
 const id = z.string().min(1).max(100);
 export const appWorkspaceSchema = z
   .object({
-    version: z.literal(3),
+    version: z.literal(4),
+    campaigns: z.array(campaignSchema).max(1000),
     activeCharacterId: id.nullable(),
     characters: z.array(characterSchema).max(101),
-    notes: notesSchema,
+    notes: z
+      .array(
+        z.object({
+          id: z.string().max(80),
+          title: z.string().min(1).max(150),
+          campaignId: id.nullable(),
+          text: z.string().max(30000),
+          date: z.iso.datetime(),
+        }),
+      )
+      .max(1000),
     metric: z.boolean(),
   })
   .superRefine((s, context) => {
+    const campaignIds = new Set(s.campaigns.map((c) => c.id));
+    if (campaignIds.size !== s.campaigns.length)
+      context.addIssue({
+        code: "custom",
+        message: "Повторяющиеся идентификаторы кампаний",
+      });
+    if (
+      s.notes.some(
+        (n) => n.campaignId !== null && !campaignIds.has(n.campaignId),
+      )
+    )
+      context.addIssue({
+        code: "custom",
+        message: "Кампания записи отсутствует",
+      });
     if (new Set(s.characters.map((c) => c.id)).size !== s.characters.length)
       context.addIssue({
         code: "custom",
@@ -49,7 +76,8 @@ export function makeDraft(
 }
 export function initialAppWorkspace(): AppWorkspace {
   return {
-    version: 3,
+    version: 4,
+    campaigns: [],
     activeCharacterId: "gu-chen-demo",
     metric: false,
     notes: [],
@@ -141,4 +169,24 @@ export function serializeBackup(s: AppWorkspace): string {
   if (new TextEncoder().encode(raw).byteLength > MAX_BACKUP_BYTES)
     throw new Error("Копия превышает 50 МБ. Уменьшите портреты.");
   return raw;
+}
+
+export function saveCampaign(
+  s: AppWorkspace,
+  campaign: Campaign,
+  baseline?: Campaign,
+): AppWorkspace {
+  const current = s.campaigns.find((c) => c.id === campaign.id);
+  if (
+    baseline
+      ? JSON.stringify(current) !== JSON.stringify(baseline)
+      : current !== undefined
+  )
+    throw new Error("Кампания изменена в другой вкладке.");
+  return {
+    ...s,
+    campaigns: baseline
+      ? s.campaigns.map((c) => (c.id === campaign.id ? campaign : c))
+      : [...s.campaigns, campaign],
+  };
 }

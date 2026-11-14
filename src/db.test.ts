@@ -328,3 +328,134 @@ it("не допускает изменения базы сравнения ра�
   const { jsonBytes } = await import("./backup-size");
   expect(stored.backupBytes).toBe(jsonBytes(stored.data));
 });
+
+describe("Миграция профилей кампаний из v3", () => {
+  it.each(["success", "invalid-data", "snapshot-failure"])(
+    "атомарное обновление: %s",
+    async (outcome) => {
+      const { legacyV3Fixture } = await import("./test-fixtures");
+      const { jsonBytes } = await import("./backup-size");
+      const data = legacyV3Fixture();
+      data.notes = [
+        {
+          id: "session",
+          title: "Игра",
+          campaign: "Долина",
+          text: "История",
+          date: "2026-11-14T12:00:00.000Z",
+        },
+      ];
+      data.characters[0].runtime.hp = 17;
+      data.characters[0].runtime.slotsRemaining = 0;
+      data.characters[0].build.portrait = "data:image/png;base64,YQ==";
+      if (outcome === "invalid-data") data.activeCharacterId = "missing";
+      const name = `v3-${crypto.randomUUID()}`;
+      const old = new Dexie(name);
+      old.version(4).stores({ documents: "id", recovery: "id,createdAt" });
+      const document = { id: "local", data, backupBytes: jsonBytes(data) };
+      const snapshot = {
+        id: "before-import",
+        reason: "before-import",
+        createdAt: "2026-11-14T12:00:00.000Z",
+        data: initialWorkspace,
+      };
+      await old.table("documents").put(document);
+      await old.table("recovery").put(snapshot);
+      old.close();
+      const next = new WorkbenchDB(name);
+      if (outcome === "snapshot-failure")
+        next.recovery.hook("creating", () => {
+          throw new Error("quota");
+        });
+      try {
+        if (outcome === "success") {
+          await initialize(next);
+          const migrated = (await next.documents.get("local"))!;
+          expect(migrated.data.version).toBe(4);
+          expect(migrated.data.characters).toEqual(data.characters);
+          expect(migrated.data.campaigns[0].name).toBe("Долина");
+          expect(migrated.data.notes[0].campaignId).toBe(
+            migrated.data.campaigns[0].id,
+          );
+          expect(migrated.backupBytes).toBe(jsonBytes(migrated.data));
+          expect((await next.recovery.get("migration-v3"))?.data).toEqual(data);
+          expect(await next.recovery.get("before-import")).toEqual(snapshot);
+          next.close();
+          await next.open();
+          await initialize(next);
+          expect(await next.documents.get("local")).toEqual(migrated);
+          expect(await next.recovery.count()).toBe(2);
+        } else {
+          await expect(initialize(next)).rejects.toThrow();
+          next.close();
+          await old.open();
+          expect(old.verno).toBe(4);
+          expect(await old.table("documents").get("local")).toEqual(document);
+          expect(await old.table("recovery").toArray()).toEqual([snapshot]);
+        }
+      } finally {
+        old.close();
+        next.close();
+        await Dexie.delete(name);
+      }
+    },
+  );
+  it("смена профиля и перенос сессии сохраняют точный размер экспорта", async () => {
+    const { makeCampaign } = await import("./campaign");
+    const { saveCampaign, encodeBackup } = await import("./workspace");
+    await changeWorkspace(
+      (s) => saveCampaign(s, makeCampaign("campaign", "Долина 🧙")),
+      db,
+    );
+    await changeWorkspace(
+      (s) => ({
+        ...s,
+        notes: [
+          {
+            id: "session",
+            title: "Игра",
+            campaignId: "campaign",
+            text: "",
+            date: "2026-11-14T12:00:00.000Z",
+          },
+        ],
+      }),
+      db,
+    );
+    await changeWorkspace(
+      (s) =>
+        saveCampaign(
+          s,
+          {
+            ...s.campaigns[0],
+            name: "Длинное название",
+            rules: { ...s.campaigns[0].rules, extraFeat: true },
+          },
+          s.campaigns[0],
+        ),
+      db,
+    );
+    await changeWorkspace(
+      (s) => ({
+        ...s,
+        notes: s.notes.map((n) => ({ ...n, campaignId: null })),
+      }),
+      db,
+    );
+    const saved = (await db.documents.get("local"))!;
+    expect(saved.backupBytes).toBe(
+      new TextEncoder().encode(encodeBackup(saved.data)).byteLength,
+    );
+    const before = structuredClone(saved);
+    await expect(
+      changeWorkspace(
+        (s) => ({
+          ...s,
+          notes: s.notes.map((n) => ({ ...n, campaignId: "missing" })),
+        }),
+        db,
+      ),
+    ).rejects.toThrow();
+    expect(await db.documents.get("local")).toEqual(before);
+  });
+});

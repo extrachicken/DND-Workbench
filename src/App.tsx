@@ -180,7 +180,7 @@ export function App() {
                 : nav.find((n) => n.id === page)?.title || "Персонаж"}
             </strong>
           </span>
-          <span className="prototype">ПРОТОТИП · 0.2</span>
+          <span className="prototype">ПРОТОТИП · 0.4</span>
         </header>
         <main id="main" tabIndex={-1}>
           {page === "characters" && (
@@ -241,6 +241,7 @@ export function App() {
               save={saveApp}
               noteId={noteId}
               setNoteId={setNoteId}
+              onDirty={setDirty}
             />
           )}
           {page === "library" && <Library query={query} setQuery={setQuery} />}

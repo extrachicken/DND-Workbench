@@ -20,7 +20,7 @@ const draft = () =>
     ancestry: "Эльф",
     className: "Волшебник",
   });
-describe("Версия 3 — перенос и резервные копии", () => {
+describe("Версия 4 — перенос и резервные копии", () => {
   it("переносит весь лист, записи и черновики, не восстанавливая ячейки", () => {
     const legacy = {
       ...initialWorkspace,
@@ -51,7 +51,13 @@ describe("Версия 3 — перенос и резервные копии", (
     };
     const moved = migrateLegacy(legacy);
     expect(moved.characters).toHaveLength(2);
-    expect(moved.notes).toEqual(legacy.notes);
+    expect(moved.notes).toEqual(
+      legacy.notes.map(({ campaign: _, ...note }) => ({
+        ...note,
+        campaignId: moved.campaigns[0].id,
+      })),
+    );
+    expect(moved.campaigns[0].name).toBe(legacy.notes[0].campaign);
     expect(moved.metric).toBe(true);
     expect(moved.characters[0].runtime).toEqual({
       hp: 12,

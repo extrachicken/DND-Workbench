@@ -1,4 +1,6 @@
 import { legacyWorkspaceSchema } from "./legacy";
+import { characterSchema as currentCharacterSchema } from "./character";
+import { makeCampaign, type Campaign } from "./campaign";
 import { z } from "zod";
 import {
   appWorkspaceSchema,
@@ -31,7 +33,7 @@ const v2Schema = z.object({
 
 export function migrateV2(raw: unknown): AppWorkspace {
   const old = v2Schema.parse(raw);
-  return appWorkspaceSchema.parse({
+  return migrateV3({
     ...old,
     version: 3,
     characters: old.characters.map(
@@ -58,7 +60,7 @@ export function migrateLegacy(raw: unknown): AppWorkspace {
     maxHp,
     ...runtime
   } = old;
-  return appWorkspaceSchema.parse({
+  return migrateV3({
     version: 3,
     activeCharacterId: "gu-chen-demo",
     notes,
@@ -89,6 +91,32 @@ export function migrateLegacy(raw: unknown): AppWorkspace {
     ],
   });
 }
+// Historical v3 exists only at the import/upgrade boundary.
+const v3Schema = z.object({
+  version: z.literal(3),
+  activeCharacterId: id.nullable(),
+  characters: z.array(currentCharacterSchema).max(101),
+  notes: legacyWorkspaceSchema.shape.notes,
+  metric: z.boolean(),
+});
+export function migrateV3(raw: unknown): AppWorkspace {
+  const old = v3Schema.parse(raw);
+  const byName = new Map<string, Campaign>();
+  const notes = old.notes.map(({ campaign: name, ...note }) => {
+    let campaign = byName.get(name);
+    if (!campaign) {
+      campaign = makeCampaign(`legacy-campaign-${byName.size}`, name);
+      byName.set(name, campaign);
+    }
+    return { ...note, campaignId: campaign.id };
+  });
+  return appWorkspaceSchema.parse({
+    ...old,
+    version: 4,
+    campaigns: [...byName.values()],
+    notes,
+  });
+}
 export function decodeBackup(raw: string): AppWorkspace {
   if (new TextEncoder().encode(raw).byteLength > MAX_BACKUP_BYTES)
     throw new Error("Копия превышает 50 МБ");
@@ -96,6 +124,7 @@ export function decodeBackup(raw: string): AppWorkspace {
   if (typeof value === "object" && value !== null && "version" in value) {
     if (value.version === 1) return migrateLegacy(value);
     if (value.version === 2) return migrateV2(value);
+    if (value.version === 3) return migrateV3(value);
   }
   return appWorkspaceSchema.parse(value);
 }

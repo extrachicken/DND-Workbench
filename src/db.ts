@@ -7,12 +7,12 @@ import {
   initialAppWorkspace,
   type AppWorkspace,
 } from "./workspace";
-import { migrateLegacy, migrateV2 } from "./migrations";
+import { migrateLegacy, migrateV2, migrateV3 } from "./migrations";
 
 export type RecoverySnapshot = {
   id: string;
   createdAt: string;
-  reason: "migration-v1" | "migration-v2" | "before-import";
+  reason: "migration-v1" | "migration-v2" | "migration-v3" | "before-import";
   data: unknown;
 };
 export class WorkbenchDB extends Dexie {
@@ -74,6 +74,26 @@ export class WorkbenchDB extends Dexie {
       documents: "id",
       recovery: "id,createdAt",
     });
+    this.version(5)
+      .stores({ documents: "id", recovery: "id,createdAt" })
+      .upgrade(async (tx) => {
+        const document = await tx.table("documents").get("local");
+        // Earlier upgrade paths already produce the current model.
+        if (!document || document.data.version === 4) return;
+        const migrated = migrateV3(document.data);
+        serializeBackup(migrated);
+        await tx.table("recovery").put({
+          id: "migration-v3",
+          createdAt: new Date().toISOString(),
+          reason: "migration-v3",
+          data: document.data,
+        });
+        await tx.table("documents").put({
+          id: "local",
+          data: migrated,
+          backupBytes: jsonBytes(migrated),
+        });
+      });
   }
 }
 export const db = new WorkbenchDB();

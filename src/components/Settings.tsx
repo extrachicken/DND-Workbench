@@ -57,7 +57,7 @@ export function Settings({
       const imported = decodeBackup(await file.text());
       if (
         !confirm(
-          `В файле ${imported.characters.length} персонажей и ${imported.notes.length} записей. Заменить текущие данные? Текущее состояние сохранится в точке восстановления.`,
+          `В файле ${imported.characters.length} персонажей, ${imported.campaigns.length} кампаний и ${imported.notes.length} записей. Заменить текущие данные? Текущее состояние сохранится в точке восстановления.`,
         )
       )
         return;
@@ -66,7 +66,7 @@ export function Settings({
       setError("");
     } catch {
       setError(
-        "Не удалось восстановить копию. Нужен JSON Workbench версии 1, 2 или 3 до 50 МБ и достаточно места в браузере. Исходные данные сохранены.",
+        "Не удалось восстановить копию. Нужен JSON Workbench версии 1, 2, 3 или 4 до 50 МБ и достаточно места в браузере. Исходные данные сохранены.",
       );
     }
   }
@@ -102,7 +102,7 @@ export function Settings({
             />
           </label>
           <p className="hint">
-            JSON · версия 3 · до 50 МБ · импорт версий 1 и 2 поддерживается
+            JSON · версия 4 · до 50 МБ · импорт версий 1, 2 и 3 поддерживается
           </p>
         </section>
         <section className="panel">
@@ -120,7 +120,9 @@ export function Settings({
                     ? "До перехода на несколько персонажей"
                     : r.reason === "migration-v2"
                       ? "До разделения сборки и состояния"
-                      : "До последнего импорта"}
+                      : r.reason === "migration-v3"
+                        ? "До появления профилей кампаний"
+                        : "До последнего импорта"}
                   <small>
                     {new Intl.DateTimeFormat("ru", {
                       dateStyle: "medium",

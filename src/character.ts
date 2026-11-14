@@ -11,17 +11,6 @@ export const inventorySchema = z
     }),
   )
   .max(1000);
-export const notesSchema = z
-  .array(
-    z.object({
-      id: z.string().max(80),
-      title: z.string().min(1).max(150),
-      campaign: z.string().min(1).max(100),
-      text: z.string().max(30000),
-      date: z.iso.datetime(),
-    }),
-  )
-  .max(1000);
 export const characterBuildSchema = z.object({
   name: z.string().trim().min(1).max(80),
   ancestry: z.string().trim().min(1).max(80),

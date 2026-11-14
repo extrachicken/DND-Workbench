@@ -33,7 +33,7 @@ describe("Разделение сборки, состояния и вычисл�
     });
     old.characters[1].sheet.slotsRemaining = null;
     const moved = migrateV2(old);
-    expect(moved.version).toBe(3);
+    expect(moved.version).toBe(4);
     expect(moved.metric).toBe(true);
     expect(moved.activeCharacterId).toBe(old.activeCharacterId);
     for (const [i, character] of moved.characters.entries()) {

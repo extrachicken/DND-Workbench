@@ -39,3 +39,21 @@ export function legacyV2Fixture() {
     ],
   };
 }
+
+export function legacyV3Fixture() {
+  const old = legacyV2Fixture();
+  return {
+    ...old,
+    version: 3 as const,
+    characters: old.characters.map(
+      ({ name, ancestry, className, sheet, ...metadata }) => {
+        const { lore, portrait, maxHp, ...runtime } = sheet;
+        return {
+          ...metadata,
+          build: { name, ancestry, className, lore, portrait, maxHp },
+          runtime,
+        };
+      },
+    ),
+  };
+}

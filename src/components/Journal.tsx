@@ -2,6 +2,8 @@ import { useMemo } from "react";
 import { Plus, ScrollText } from "lucide-react";
 import type { AppWorkspace } from "../workspace";
 import type { SaveWorkspace } from "./Characters";
+import { Campaigns } from "./Campaigns";
+import { campaignLabel } from "../campaign";
 import { Empty } from "./Empty";
 
 const noteDate = new Intl.DateTimeFormat("ru", { dateStyle: "medium" });
@@ -11,18 +13,20 @@ export function Journal({
   save,
   noteId,
   setNoteId,
+  onDirty,
 }: {
   workspace: AppWorkspace;
   save: SaveWorkspace;
   noteId: string;
   setNoteId: (id: string) => void;
+  onDirty: (dirty: boolean) => void;
 }) {
   const groups = useMemo(() => {
-    const result = new Map<string, AppWorkspace["notes"]>();
+    const result = new Map<string | null, AppWorkspace["notes"]>();
     for (const note of workspace.notes) {
-      const group = result.get(note.campaign);
+      const group = result.get(note.campaignId);
       if (group) group.push(note);
-      else result.set(note.campaign, [note]);
+      else result.set(note.campaignId, [note]);
     }
     return [...result.entries()];
   }, [workspace.notes]);
@@ -45,7 +49,7 @@ export function Journal({
                 {
                   id,
                   title: `Сессия ${v.notes.length + 1}`,
-                  campaign: "Без кампании",
+                  campaignId: activeNote?.campaignId ?? null,
                   date: new Date().toISOString(),
                   text: "",
                 },
@@ -60,19 +64,29 @@ export function Journal({
           Новая сессия
         </button>
       </div>
+      <Campaigns workspace={workspace} save={save} onDirty={onDirty} />
       {workspace.notes.length === 0 ? (
         <section className="panel">
           <Empty
             title="Первая страница вашей истории"
-            text="Создайте заметку сессии. Укажите название кампании или ваншота — записи с одинаковым названием будут собраны вместе."
+            text="Создайте заметку сессии и выберите её кампанию или ваншот. Можно вести записи и без кампании."
           />
         </section>
       ) : (
         <div className="journal-grid">
           <aside className="panel note-list">
             {groups.map(([c, notes]) => (
-              <div key={c}>
-                <div className="eyebrow">{c}</div>
+              <div key={JSON.stringify(c)}>
+                <div className="eyebrow">
+                  {c === null
+                    ? "Без кампании"
+                    : campaignLabel(
+                        workspace.campaigns.find(
+                          (campaign) => campaign.id === c,
+                        )!,
+                        workspace.campaigns,
+                      )}
+                </div>
                 {notes.map((n) => (
                   <button
                     key={n.id}
@@ -113,21 +127,25 @@ export function Journal({
               </label>
               <label>
                 Кампания или ваншот
-                <input
-                  autoComplete="off"
-                  maxLength={100}
-                  defaultValue={activeNote.campaign}
-                  onBlur={(e) => {
-                    const text = e.target.value.trim();
-                    if (text)
-                      void save((v) => ({
-                        ...v,
-                        notes: v.notes.map((n) =>
-                          n.id === activeNote.id ? { ...n, campaign: text } : n,
-                        ),
-                      }));
+                <select
+                  value={activeNote.campaignId ?? ""}
+                  onChange={(e) => {
+                    const campaignId = e.target.value || null;
+                    void save((v) => ({
+                      ...v,
+                      notes: v.notes.map((n) =>
+                        n.id === activeNote.id ? { ...n, campaignId } : n,
+                      ),
+                    }));
                   }}
-                />
+                >
+                  <option value="">Без кампании</option>
+                  {workspace.campaigns.map((campaign) => (
+                    <option key={campaign.id} value={campaign.id}>
+                      {campaignLabel(campaign, workspace.campaigns)}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label>
                 Что произошло
