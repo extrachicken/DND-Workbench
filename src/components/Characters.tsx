@@ -9,11 +9,15 @@ import {
   Users,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { ProgressionEditor } from "./ProgressionEditor";
+import { previewProgression } from "../progression";
+import type { Campaign } from "../campaign";
 import {
   archiveCharacter,
   makeDraft,
   restoreCharacter,
   selectCharacter,
+  saveDraftBuild,
   type AppWorkspace,
   type Character,
 } from "../workspace";
@@ -103,7 +107,9 @@ export function Characters({
               <p className="hint">
                 {c.kind === "demo"
                   ? "Игровой лист для проверки интерфейса"
-                  : "Образ и история. Проверка правил ещё не подключена."}
+                  : c.build.progression
+                    ? "Основа сборки сохранена. Полный игровой лист ещё впереди."
+                    : "Образ и история. Можно добавить характеристики и уровни."}
               </p>
               <div className="card-actions">
                 {archived ? (
@@ -186,14 +192,22 @@ const races = [
 ];
 export function DraftEditor({
   character,
+  campaigns,
   save,
   onDirty,
 }: {
   character?: Character;
+  campaigns: Campaign[];
   save: SaveWorkspace;
   onDirty: (dirty: boolean) => void;
 }) {
   const [baseline] = useState(character);
+  const [campaignId, setCampaignId] = useState(
+    character?.build.campaignId ?? null,
+  );
+  const [progression, setProgression] = useState(
+    character?.build.progression ?? null,
+  );
   const [name, setName] = useState(character?.build.name ?? "");
   const [ancestry, setAncestry] = useState(
     character?.build.ancestry ?? "Человек",
@@ -214,39 +228,29 @@ export function DraftEditor({
     setDirty(true);
   }
   async function submit() {
+    if (saving) return;
     setSaving(true);
+    const savedClass = progression
+      ? previewProgression(progression).classSummary
+      : className.trim();
     const id = character?.id ?? crypto.randomUUID();
     const ok = await save(
       (s) => {
         if (character) {
-          const current = s.characters.find((c) => c.id === id);
-          // Do not resurrect a character archived in another tab or overwrite a stale edit.
-          if (
-            !current ||
-            current.archivedAt ||
-            current.build.name !== baseline?.build.name ||
-            current.build.ancestry !== baseline?.build.ancestry ||
-            current.build.className !== baseline?.build.className ||
-            current.build.lore !== baseline?.build.lore
-          )
-            throw new Error("Черновик изменился в другой вкладке.");
-          return {
-            ...s,
-            characters: s.characters.map((c) =>
-              c.id === id
-                ? {
-                    ...c,
-                    build: {
-                      ...c.build,
-                      name: name.trim(),
-                      ancestry: ancestry.trim(),
-                      className: className.trim(),
-                      lore,
-                    },
-                  }
-                : c,
-            ),
-          };
+          return saveDraftBuild(
+            s,
+            id,
+            {
+              ...baseline!.build,
+              name: name.trim(),
+              ancestry: ancestry.trim(),
+              className: savedClass,
+              lore,
+              campaignId,
+              progression,
+            },
+            baseline!.build,
+          );
         }
         const draft = makeDraft({ id, name, ancestry, className });
         return {
@@ -256,7 +260,13 @@ export function DraftEditor({
             ...s.characters,
             {
               ...draft,
-              build: { ...draft.build, lore },
+              build: {
+                ...draft.build,
+                lore,
+                campaignId,
+                progression,
+                className: savedClass,
+              },
             },
           ],
         };
@@ -287,7 +297,7 @@ export function DraftEditor({
         <section className="panel">
           {!character && (
             <ol className="steps">
-              {["Образ", "Класс", "История"].map((x, i) => (
+              {["Образ", "Класс", "История", "Сборка"].map((x, i) => (
                 <li
                   key={x}
                   className={step === i + 1 ? "current" : ""}
@@ -300,100 +310,118 @@ export function DraftEditor({
             </ol>
           )}
           <p className="notice">
-            Сейчас это черновик образа. Проверка правил, характеристики,
-            мультиклассы и повышение уровня появятся позже.
+            Сохраните образ и заполните основу сборки. Проверка правил пока
+            ограничена характеристиками, хитами и решениями по уровням.
           </p>
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              if (!character && step < 3) setStep(step + 1);
+              if (!character && step < 4) setStep(step + 1);
               else void submit();
             }}
           >
-            {(character || step === 1) && (
-              <>
-                <h2>Имя и происхождение</h2>
-                <label>
-                  Имя персонажа
-                  <input
-                    name="character-name"
-                    autoComplete="off"
-                    required
-                    maxLength={80}
-                    pattern=".*\S.*"
-                    value={name}
-                    onChange={(e) => edit(() => setName(e.target.value))}
-                    placeholder="Как зовут вашего героя…"
-                  />
-                </label>
-                <label>
-                  Происхождение
-                  <input
-                    name="ancestry"
-                    autoComplete="off"
-                    required
-                    maxLength={80}
-                    pattern=".*\S.*"
-                    list="ancestry-options"
-                    value={ancestry}
-                    onChange={(e) => edit(() => setAncestry(e.target.value))}
-                  />
-                  <datalist id="ancestry-options">
-                    {races.map((r) => (
-                      <option key={r} value={r} />
-                    ))}
-                  </datalist>
-                </label>
-              </>
-            )}
-            {(character || step === 2) && (
-              <>
-                <h2>Класс персонажа</h2>
-                <label>
-                  Начальный класс
-                  <input
-                    name="class"
-                    autoComplete="off"
-                    required
-                    maxLength={80}
-                    pattern=".*\S.*"
-                    list="class-options"
-                    value={className}
-                    onChange={(e) => edit(() => setClass(e.target.value))}
-                  />
-                  <datalist id="class-options">
-                    {classes.map((c) => (
-                      <option key={c} value={c} />
-                    ))}
-                  </datalist>
-                </label>
-                <p className="hint">
-                  Выберите подсказку или впишите свой вариант. Это название для
-                  черновика, механики класса пока не применяются.
-                </p>
-              </>
-            )}
-            {(character || step === 3) && (
-              <>
-                <h2>{character ? "История" : name}</h2>
-                {!character && (
-                  <p className="muted">
-                    {ancestry} · {className}
+            <fieldset className="draft-fields" disabled={saving}>
+              {(character || step === 1) && (
+                <>
+                  <h2>Имя и происхождение</h2>
+                  <label>
+                    Имя персонажа
+                    <input
+                      name="character-name"
+                      autoComplete="off"
+                      required
+                      maxLength={80}
+                      pattern=".*\S.*"
+                      value={name}
+                      onChange={(e) => edit(() => setName(e.target.value))}
+                      placeholder="Как зовут вашего героя…"
+                    />
+                  </label>
+                  <label>
+                    Происхождение
+                    <input
+                      name="ancestry"
+                      autoComplete="off"
+                      required
+                      maxLength={80}
+                      pattern=".*\S.*"
+                      list="ancestry-options"
+                      value={ancestry}
+                      onChange={(e) => edit(() => setAncestry(e.target.value))}
+                    />
+                    <datalist id="ancestry-options">
+                      {races.map((r) => (
+                        <option key={r} value={r} />
+                      ))}
+                    </datalist>
+                  </label>
+                </>
+              )}
+              {(character || step === 2) && (
+                <>
+                  <h2>Класс персонажа</h2>
+                  <label>
+                    Название класса
+                    <input
+                      name="class"
+                      autoComplete="off"
+                      required
+                      maxLength={80}
+                      pattern=".*\S.*"
+                      list="class-options"
+                      disabled={progression !== null}
+                      value={
+                        progression
+                          ? previewProgression(progression).classSummary
+                          : className
+                      }
+                      onChange={(e) => edit(() => setClass(e.target.value))}
+                    />
+                    <datalist id="class-options">
+                      {classes.map((c) => (
+                        <option key={c} value={c} />
+                      ))}
+                    </datalist>
+                  </label>
+                  <p className="hint">
+                    {progression
+                      ? "Название рассчитывается из решений по уровням ниже."
+                      : "Выберите подсказку или впишите свой вариант. После заполнения уровней название будет рассчитано из сборки."}
                   </p>
-                )}
-                <label>
-                  История персонажа
-                  <textarea
-                    name="lore"
-                    rows={9}
-                    maxLength={30000}
-                    value={lore}
-                    onChange={(e) => edit(() => setLore(e.target.value))}
-                    placeholder="Откуда вы пришли? Кому доверяете? Чего ищете…"
-                  />
-                </label>
-              </>
-            )}
+                </>
+              )}
+              {(character || step === 3) && (
+                <>
+                  <h2>{character ? "История" : name}</h2>
+                  {!character && (
+                    <p className="muted">
+                      {ancestry} · {className}
+                    </p>
+                  )}
+                  <label>
+                    История персонажа
+                    <textarea
+                      name="lore"
+                      rows={9}
+                      maxLength={30000}
+                      value={lore}
+                      onChange={(e) => edit(() => setLore(e.target.value))}
+                      placeholder="Откуда вы пришли? Кому доверяете? Чего ищете…"
+                    />
+                  </label>
+                </>
+              )}
+              {(character || step === 4) && (
+                <ProgressionEditor
+                  value={progression}
+                  onChange={(p) => edit(() => setProgression(p))}
+                  campaignId={campaignId}
+                  onCampaignChange={(id) => edit(() => setCampaignId(id))}
+                  campaigns={campaigns}
+                  previous={baseline?.build.progression ?? null}
+                />
+              )}
+            </fieldset>
             <div className="form-footer">
               {!character && step > 1 ? (
                 <button type="button" onClick={() => setStep(step - 1)}>
@@ -409,12 +437,16 @@ export function DraftEditor({
               <button className="primary" disabled={saving}>
                 {saving
                   ? "Сохраняем…"
-                  : !character && step < 3
+                  : !character && step < 4
                     ? "Продолжить"
                     : character
                       ? "Сохранить изменения"
                       : "Сохранить черновик"}
-                {step < 3 ? <ChevronRight size={16} /> : <Save size={16} />}
+                {!character && step < 4 ? (
+                  <ChevronRight size={16} />
+                ) : (
+                  <Save size={16} />
+                )}
               </button>
             </div>
           </form>

@@ -33,7 +33,7 @@ describe("Разделение сборки, состояния и вычисл�
     });
     old.characters[1].sheet.slotsRemaining = null;
     const moved = migrateV2(old);
-    expect(moved.version).toBe(4);
+    expect(moved.version).toBe(5);
     expect(moved.metric).toBe(true);
     expect(moved.activeCharacterId).toBe(old.activeCharacterId);
     for (const [i, character] of moved.characters.entries()) {
@@ -49,6 +49,8 @@ describe("Разделение сборки, состояния и вычисл�
           lore: previous.sheet.lore,
           portrait: previous.sheet.portrait,
           maxHp: previous.sheet.maxHp,
+          campaignId: null,
+          progression: null,
         },
         runtime: {
           hp: previous.sheet.hp,

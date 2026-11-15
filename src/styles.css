@@ -1742,3 +1742,71 @@ details button {
     padding: 12px;
   }
 }
+
+/* Draft decisions retain their reading order on mobile. */
+.draft-fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.progression-editor {
+  margin-top: 24px;
+  min-width: 0;
+}
+.build-abilities {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.build-ability {
+  min-width: 0;
+}
+.build-level {
+  border: 1px solid var(--border, #2d333b);
+  border-radius: 8px;
+  padding: 16px;
+  margin: 20px 0;
+  min-width: 0;
+}
+.build-level legend {
+  padding: 0 8px;
+  overflow-wrap: anywhere;
+}
+.build-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.build-preview {
+  border-top: 1px solid var(--border, #2d333b);
+  margin-top: 24px;
+  padding-top: 20px;
+}
+.build-preview li {
+  margin: 8px 0;
+}
+.build-totals {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.progression-editor .check {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.progression-editor .check input {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+@media (max-width: 580px) {
+  .build-abilities,
+  .build-totals {
+    grid-template-columns: 1fr;
+  }
+  .steps {
+    flex-wrap: wrap;
+  }
+}

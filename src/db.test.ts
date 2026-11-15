@@ -371,8 +371,13 @@ describe("Миграция профилей кампаний из v3", () => {
         if (outcome === "success") {
           await initialize(next);
           const migrated = (await next.documents.get("local"))!;
-          expect(migrated.data.version).toBe(4);
-          expect(migrated.data.characters).toEqual(data.characters);
+          expect(migrated.data.version).toBe(5);
+          expect(migrated.data.characters).toEqual(
+            data.characters.map((c) => ({
+              ...c,
+              build: { ...c.build, campaignId: null, progression: null },
+            })),
+          );
           expect(migrated.data.campaigns[0].name).toBe("Долина");
           expect(migrated.data.notes[0].campaignId).toBe(
             migrated.data.campaigns[0].id,
@@ -457,5 +462,131 @@ describe("Миграция профилей кампаний из v3", () => {
       ),
     ).rejects.toThrow();
     expect(await db.documents.get("local")).toEqual(before);
+  });
+});
+
+describe("Миграция решений по уровням из v4", () => {
+  it.each(["success", "invalid-data", "snapshot-failure"])(
+    "атомарное обновление v4: %s",
+    async (outcome) => {
+      const { legacyV3Fixture } = await import("./test-fixtures");
+      const { jsonBytes } = await import("./backup-size");
+      const { makeCampaign } = await import("./campaign");
+      const data = {
+        ...legacyV3Fixture(),
+        version: 4,
+        campaigns: [makeCampaign("c", "Долина")],
+        notes: [
+          {
+            id: "n",
+            title: "Игра",
+            campaignId: "c",
+            text: "Текст",
+            date: "2026-11-14T12:00:00.000Z",
+          },
+        ],
+      };
+      data.characters[0].runtime.hp = 12;
+      data.characters[0].runtime.slotsRemaining = 0;
+      data.characters[0].build.portrait = "data:image/png;base64,YQ==";
+      data.characters.push({
+        ...structuredClone(data.characters[0]),
+        id: "archive",
+        archivedAt: "2026-11-14T12:00:00.000Z",
+      });
+      if (outcome === "invalid-data") data.notes[0].campaignId = "missing";
+      const name = `v4-${crypto.randomUUID()}`;
+      const old = new Dexie(name);
+      old.version(5).stores({ documents: "id", recovery: "id,createdAt" });
+      const document = { id: "local", data, backupBytes: jsonBytes(data) };
+      const prior = {
+        id: "before-import",
+        reason: "before-import",
+        createdAt: "2026-11-14T12:00:00.000Z",
+        data: initialWorkspace,
+      };
+      await old.table("documents").put(document);
+      await old.table("recovery").put(prior);
+      old.close();
+      const next = new WorkbenchDB(name);
+      if (outcome === "snapshot-failure")
+        next.recovery.hook("creating", () => {
+          throw new Error("quota");
+        });
+      try {
+        if (outcome === "success") {
+          await initialize(next);
+          const moved = (await next.documents.get("local"))!;
+          expect(moved.data.version).toBe(5);
+          expect(next.verno).toBe(6);
+          expect(moved.data.notes).toEqual(data.notes);
+          expect(moved.data.campaigns).toEqual(data.campaigns);
+          expect(moved.data.characters).toEqual(
+            data.characters.map((c) => ({
+              ...c,
+              build: { ...c.build, campaignId: null, progression: null },
+            })),
+          );
+          expect(moved.backupBytes).toBe(jsonBytes(moved.data));
+          expect((await next.recovery.get("migration-v4"))?.data).toEqual(data);
+          expect(await next.recovery.get("before-import")).toEqual(prior);
+          next.close();
+          await next.open();
+          await initialize(next);
+          expect(await next.documents.get("local")).toEqual(moved);
+          const { decodeBackup } = await import("./migrations");
+          await replaceWorkspace(decodeBackup(JSON.stringify(data)), next);
+          expect((await next.documents.get("local"))?.data).toEqual(moved.data);
+          expect((await next.recovery.get("before-import"))?.data).toEqual(
+            moved.data,
+          );
+        } else {
+          await expect(initialize(next)).rejects.toThrow();
+          next.close();
+          await old.open();
+          expect(old.verno).toBe(5);
+          expect(await old.table("documents").get("local")).toEqual(document);
+          expect(await old.table("recovery").toArray()).toEqual([prior]);
+        }
+      } finally {
+        next.close();
+        old.close();
+        await Dexie.delete(name);
+      }
+    },
+  );
+  it("считает размер решений и сохраняет актуальные ресурсы в транзакции", async () => {
+    const { emptyProgression } = await import("./progression");
+    const { jsonBytes } = await import("./backup-size");
+    const { saveDraftBuild } = await import("./workspace");
+    const draft = makeDraft({
+      id: "build",
+      name: "Имя",
+      ancestry: "Человек",
+      className: "Воин",
+    });
+    await changeWorkspace(
+      (s) => ({ ...s, characters: [...s.characters, draft] }),
+      db,
+    );
+    await changeWorkspace(
+      (s) =>
+        saveDraftBuild(
+          s,
+          draft.id,
+          { ...draft.build, progression: emptyProgression() },
+          draft.build,
+        ),
+      db,
+    );
+    const current = (await db.documents.get("local"))!;
+    expect(current.backupBytes).toBe(jsonBytes(current.data));
+    await expect(
+      changeWorkspace(
+        (s) => saveDraftBuild(s, draft.id, draft.build, draft.build),
+        db,
+      ),
+    ).rejects.toThrow("другой вкладке");
+    expect(await db.documents.get("local")).toEqual(current);
   });
 });

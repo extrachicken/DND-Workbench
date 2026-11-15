@@ -30,7 +30,12 @@ describe("Профили кампаний", () => {
     old.characters[0].runtime.slotsRemaining = 0;
     const before = structuredClone(old);
     const moved = migrateV3(old);
-    expect(moved.characters).toEqual(old.characters);
+    expect(moved.characters).toEqual(
+      old.characters.map((c) => ({
+        ...c,
+        build: { ...c.build, campaignId: null, progression: null },
+      })),
+    );
     expect(moved.campaigns.map((c) => c.name)).toEqual([
       "Долина",
       "долина",
@@ -59,7 +64,7 @@ describe("Профили кампаний", () => {
             ? { ...legacyV2Fixture(), notes }
             : { ...legacyV3Fixture(), notes };
       const moved = decodeBackup(JSON.stringify(old));
-      expect(moved.version).toBe(4);
+      expect(moved.version).toBe(5);
       expect(moved.campaigns).toHaveLength(4);
       expect(moved.notes).toHaveLength(5);
       expect(decodeBackup(encodeBackup(moved))).toEqual(moved);

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { progressionSchema } from "./progression";
 
 export const bounded = z.number().int().min(0).max(9999);
 export const inventorySchema = z
@@ -20,7 +21,9 @@ export const characterBuildSchema = z.object({
     .string()
     .max(3000000)
     .regex(/^(|data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+)$/),
-  // Imported/manual maximum until level-by-level HP decisions are implemented.
+  campaignId: z.string().min(1).max(100).nullable(),
+  progression: progressionSchema.nullable(),
+  // Manual gameplay maximum; a draft preview never overwrites current resources.
   maxHp: bounded.min(1),
 });
 export const runtimeStateSchema = z.object({

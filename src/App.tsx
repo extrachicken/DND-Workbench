@@ -180,7 +180,7 @@ export function App() {
                 : nav.find((n) => n.id === page)?.title || "Персонаж"}
             </strong>
           </span>
-          <span className="prototype">ПРОТОТИП · 0.4</span>
+          <span className="prototype">ПРОТОТИП · 0.5</span>
         </header>
         <main id="main" tabIndex={-1}>
           {page === "characters" && (
@@ -189,6 +189,7 @@ export function App() {
           {page === "character" && character?.kind === "draft" && (
             <DraftEditor
               key={character.id}
+              campaigns={workspace.campaigns}
               character={character}
               save={saveApp}
               onDirty={setDirty}
@@ -231,6 +232,7 @@ export function App() {
           {page === "create" && (
             <DraftEditor
               key="new-character"
+              campaigns={workspace.campaigns}
               save={saveApp}
               onDirty={setDirty}
             />

@@ -66,7 +66,7 @@ export function Settings({
       setError("");
     } catch {
       setError(
-        "Не удалось восстановить копию. Нужен JSON Workbench версии 1, 2, 3 или 4 до 50 МБ и достаточно места в браузере. Исходные данные сохранены.",
+        "Не удалось восстановить копию. Нужен JSON Workbench версии 1, 2, 3, 4 или 5 до 50 МБ и достаточно места в браузере. Исходные данные сохранены.",
       );
     }
   }
@@ -102,7 +102,7 @@ export function Settings({
             />
           </label>
           <p className="hint">
-            JSON · версия 4 · до 50 МБ · импорт версий 1, 2 и 3 поддерживается
+            JSON · версия 5 · до 50 МБ · импорт версий 1–4 поддерживается
           </p>
         </section>
         <section className="panel">
@@ -122,7 +122,9 @@ export function Settings({
                       ? "До разделения сборки и состояния"
                       : r.reason === "migration-v3"
                         ? "До появления профилей кампаний"
-                        : "До последнего импорта"}
+                        : r.reason === "migration-v4"
+                          ? "До решений по уровням"
+                          : "До последнего импорта"}
                   <small>
                     {new Intl.DateTimeFormat("ru", {
                       dateStyle: "medium",

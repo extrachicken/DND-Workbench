@@ -5,7 +5,7 @@ export type { Character } from "./character";
 const id = z.string().min(1).max(100);
 export const appWorkspaceSchema = z
   .object({
-    version: z.literal(4),
+    version: z.literal(5),
     campaigns: z.array(campaignSchema).max(1000),
     activeCharacterId: id.nullable(),
     characters: z.array(characterSchema).max(101),
@@ -37,6 +37,16 @@ export const appWorkspaceSchema = z
       context.addIssue({
         code: "custom",
         message: "Кампания записи отсутствует",
+      });
+    if (
+      s.characters.some(
+        (c) =>
+          c.build.campaignId !== null && !campaignIds.has(c.build.campaignId),
+      )
+    )
+      context.addIssue({
+        code: "custom",
+        message: "Кампания персонажа отсутствует",
       });
     if (new Set(s.characters.map((c) => c.id)).size !== s.characters.length)
       context.addIssue({
@@ -70,13 +80,20 @@ export function makeDraft(
     id,
     kind: "draft",
     archivedAt: null,
-    build: { ...identity, lore: "", portrait: "", maxHp: 1 },
+    build: {
+      ...identity,
+      lore: "",
+      portrait: "",
+      maxHp: 1,
+      campaignId: null,
+      progression: null,
+    },
     runtime: { hp: 0, tempHp: 0, slotsRemaining: null, inventory: [] },
   });
 }
 export function initialAppWorkspace(): AppWorkspace {
   return {
-    version: 4,
+    version: 5,
     campaigns: [],
     activeCharacterId: "gu-chen-demo",
     metric: false,
@@ -91,6 +108,8 @@ export function initialAppWorkspace(): AppWorkspace {
           ancestry: "Человек",
           className: "Савант 3 / Волшебник 1",
           maxHp: 30,
+          campaignId: null,
+          progression: null,
           portrait: "",
           lore: "Гу Чень — Хранитель душ. Его настоящее имя — Синь Дзин. За образом учёного скрывается агент двора Хань.\n\nЭто учебная копия. Дополните историю своими заметками.",
         },
@@ -162,6 +181,28 @@ export function updateCharacter(
 }
 export function encodeBackup(s: AppWorkspace): string {
   return serializeBackup(appWorkspaceSchema.parse(s));
+}
+export function saveDraftBuild(
+  s: AppWorkspace,
+  id: string,
+  build: Character["build"],
+  baseline: Character["build"],
+): AppWorkspace {
+  const current = s.characters.find((c) => c.id === id);
+  if (
+    !current ||
+    current.archivedAt ||
+    current.kind !== "draft" ||
+    Object.keys(baseline).some((key) => {
+      const field = key as keyof Character["build"];
+      return field === "progression"
+        ? JSON.stringify(current.build.progression) !==
+            JSON.stringify(baseline.progression)
+        : current.build[field] !== baseline[field];
+    })
+  )
+    throw new Error("Черновик изменился в другой вкладке.");
+  return updateCharacter(s, id, (c) => ({ build, runtime: c.runtime }));
 }
 // Call only with an already validated workspace. Compact JSON is the export format.
 export function serializeBackup(s: AppWorkspace): string {

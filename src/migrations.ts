@@ -1,5 +1,5 @@
 import { legacyWorkspaceSchema } from "./legacy";
-import { characterSchema as currentCharacterSchema } from "./character";
+import { characterBuildSchema, runtimeStateSchema } from "./character";
 import { makeCampaign, type Campaign } from "./campaign";
 import { z } from "zod";
 import {
@@ -91,11 +91,23 @@ export function migrateLegacy(raw: unknown): AppWorkspace {
     ],
   });
 }
+const historicalCharacterSchema = z
+  .object({
+    id,
+    kind: z.enum(["demo", "draft"]),
+    archivedAt: z.iso.datetime().nullable(),
+    build: characterBuildSchema.omit({ campaignId: true, progression: true }),
+    runtime: runtimeStateSchema,
+  })
+  .refine(
+    (c) => c.runtime.hp <= c.build.maxHp,
+    "Текущие хиты превышают максимум",
+  );
 // Historical v3 exists only at the import/upgrade boundary.
 const v3Schema = z.object({
   version: z.literal(3),
   activeCharacterId: id.nullable(),
-  characters: z.array(currentCharacterSchema).max(101),
+  characters: z.array(historicalCharacterSchema).max(101),
   notes: legacyWorkspaceSchema.shape.notes,
   metric: z.boolean(),
 });
@@ -110,11 +122,27 @@ export function migrateV3(raw: unknown): AppWorkspace {
     }
     return { ...note, campaignId: campaign.id };
   });
-  return appWorkspaceSchema.parse({
+  return migrateV4({
     ...old,
     version: 4,
     campaigns: [...byName.values()],
     notes,
+  });
+}
+const v4Schema = z.object({
+  ...appWorkspaceSchema.shape,
+  version: z.literal(4),
+  characters: z.array(historicalCharacterSchema).max(101),
+});
+export function migrateV4(raw: unknown): AppWorkspace {
+  const old = v4Schema.parse(raw);
+  return appWorkspaceSchema.parse({
+    ...old,
+    version: 5,
+    characters: old.characters.map((c) => ({
+      ...c,
+      build: { ...c.build, campaignId: null, progression: null },
+    })),
   });
 }
 export function decodeBackup(raw: string): AppWorkspace {
@@ -125,6 +153,7 @@ export function decodeBackup(raw: string): AppWorkspace {
     if (value.version === 1) return migrateLegacy(value);
     if (value.version === 2) return migrateV2(value);
     if (value.version === 3) return migrateV3(value);
+    if (value.version === 4) return migrateV4(value);
   }
   return appWorkspaceSchema.parse(value);
 }
