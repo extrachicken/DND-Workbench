@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { skillSchema, expertiseSchema } from "./proficiencies";
 import {
   abilityIds,
   classLevels,
@@ -40,7 +41,7 @@ const improvement = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("feat"), feat: z.literal("grappler") }),
 ]);
 export const progressionSchema = z.object({
-  catalog: z.literal("srd-5.1-starter-1"),
+  catalog: z.literal("srd-5.1-starter-2"),
   baseScores: scores,
   ancestryBonuses: bonuses,
   abilityNotes: z.string().max(2000),
@@ -59,6 +60,8 @@ export const progressionSchema = z.object({
           ])
           .nullable(),
         improvement: improvement.nullable(),
+        skills: z.array(skillSchema).max(4),
+        expertise: z.array(expertiseSchema).max(2),
       }),
     )
     .min(1)
@@ -67,7 +70,7 @@ export const progressionSchema = z.object({
 export type Progression = z.infer<typeof progressionSchema>;
 export function emptyProgression(): Progression {
   return {
-    catalog: "srd-5.1-starter-1",
+    catalog: "srd-5.1-starter-2",
     baseScores: {
       str: null,
       dex: null,
@@ -81,7 +84,15 @@ export function emptyProgression(): Progression {
     allowMulticlass: false,
     allowFeats: false,
     extraFeat: null,
-    levels: [{ classId: "fighter", hp: "first", improvement: null }],
+    levels: [
+      {
+        classId: "fighter",
+        hp: "first",
+        improvement: null,
+        skills: [],
+        expertise: [],
+      },
+    ],
   };
 }
 export function improvementLevels(p: Progression) {

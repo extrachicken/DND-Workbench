@@ -1810,3 +1810,34 @@ details button {
     flex-wrap: wrap;
   }
 }
+
+.proficiency-choices {
+  min-width: 0;
+  margin: 16px 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.proficiency-choices legend {
+  max-width: 100%;
+}
+.proficiency-results {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 12px;
+  margin: 12px 0;
+}
+.proficiency-results > div {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  overflow-wrap: anywhere;
+}
+.proficiency-results strong,
+.proficiency-results small {
+  display: block;
+}
+.proficiency-results small {
+  margin-top: 4px;
+  color: var(--muted);
+}

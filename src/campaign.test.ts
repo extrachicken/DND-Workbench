@@ -64,7 +64,7 @@ describe("Профили кампаний", () => {
             ? { ...legacyV2Fixture(), notes }
             : { ...legacyV3Fixture(), notes };
       const moved = decodeBackup(JSON.stringify(old));
-      expect(moved.version).toBe(5);
+      expect(moved.version).toBe(6);
       expect(moved.campaigns).toHaveLength(4);
       expect(moved.notes).toHaveLength(5);
       expect(decodeBackup(encodeBackup(moved))).toEqual(moved);

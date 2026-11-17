@@ -7,7 +7,13 @@ import {
   initialAppWorkspace,
   type AppWorkspace,
 } from "./workspace";
-import { migrateLegacy, migrateV2, migrateV3, migrateV4 } from "./migrations";
+import {
+  migrateLegacy,
+  migrateV2,
+  migrateV3,
+  migrateV4,
+  migrateV5,
+} from "./migrations";
 
 export type RecoverySnapshot = {
   id: string;
@@ -17,6 +23,7 @@ export type RecoverySnapshot = {
     | "migration-v2"
     | "migration-v3"
     | "migration-v4"
+    | "migration-v5"
     | "before-import";
   data: unknown;
 };
@@ -103,12 +110,31 @@ export class WorkbenchDB extends Dexie {
       .stores({ documents: "id", recovery: "id,createdAt" })
       .upgrade(async (tx) => {
         const document = await tx.table("documents").get("local");
-        if (!document || document.data.version === 5) return;
+        if (!document || document.data.version >= 5) return;
         const migrated = migrateV4(document.data);
         serializeBackup(migrated);
         await tx.table("recovery").put({
           id: "migration-v4",
           reason: "migration-v4",
+          createdAt: new Date().toISOString(),
+          data: document.data,
+        });
+        await tx.table("documents").put({
+          id: "local",
+          data: migrated,
+          backupBytes: jsonBytes(migrated),
+        });
+      });
+    this.version(7)
+      .stores({ documents: "id", recovery: "id,createdAt" })
+      .upgrade(async (tx) => {
+        const document = await tx.table("documents").get("local");
+        if (!document || document.data.version >= 6) return;
+        const migrated = migrateV5(document.data);
+        serializeBackup(migrated);
+        await tx.table("recovery").put({
+          id: "migration-v5",
+          reason: "migration-v5",
           createdAt: new Date().toISOString(),
           data: document.data,
         });

@@ -5,7 +5,7 @@ export type { Character } from "./character";
 const id = z.string().min(1).max(100);
 export const appWorkspaceSchema = z
   .object({
-    version: z.literal(5),
+    version: z.literal(6),
     campaigns: z.array(campaignSchema).max(1000),
     activeCharacterId: id.nullable(),
     characters: z.array(characterSchema).max(101),
@@ -93,7 +93,7 @@ export function makeDraft(
 }
 export function initialAppWorkspace(): AppWorkspace {
   return {
-    version: 5,
+    version: 6,
     campaigns: [],
     activeCharacterId: "gu-chen-demo",
     metric: false,

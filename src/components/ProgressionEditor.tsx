@@ -1,3 +1,5 @@
+import { ProficiencyChoices, ProficiencyPreview } from "./Proficiencies";
+import { resolveProficiencies } from "../proficiencies";
 import { abilityIds, abilityModifier } from "../rules";
 import {
   abilityNames,
@@ -27,6 +29,7 @@ export function ProgressionEditor({
 }) {
   const campaign = campaigns.find((c) => c.id === campaignId);
   const preview = value ? previewProgression(value, campaign) : null;
+  const proficiencies = value ? resolveProficiencies(value) : null;
   const before = previous ? previewProgression(previous, campaign) : null;
   const opportunities = value ? improvementLevels(value) : [];
   function level(index: number, patch: Partial<Progression["levels"][number]>) {
@@ -63,8 +66,8 @@ export function ProgressionEditor({
       )}
       <p className="notice">
         Набор 2014: Воин, Плут, черта «Борец». Здесь проверяется основа сборки.
-        Навыки, подклассы, снаряжение и боевые возможности ещё не подключены;
-        персонаж остаётся черновиком.
+        Подключены навыки и владения классов. Предыстория, подклассы, снаряжение
+        и боевые возможности ещё впереди; персонаж остаётся черновиком.
       </p>
       {!value ? (
         <button type="button" onClick={() => onChange(emptyProgression())}>
@@ -201,6 +204,12 @@ export function ProgressionEditor({
                   ))}
                 </select>
               </label>
+              <ProficiencyChoices
+                index={index}
+                entry={entry}
+                options={proficiencies!.levels[index]}
+                onChange={(patch) => level(index, patch)}
+              />
               <label>
                 Хиты уровня {index + 1}
                 <select
@@ -326,6 +335,8 @@ export function ProgressionEditor({
                       classId: value.levels.at(-1)!.classId,
                       hp: null,
                       improvement: null,
+                      skills: [],
+                      expertise: [],
                     },
                   ],
                 })
@@ -402,8 +413,8 @@ export function ProgressionEditor({
                 </>
               ) : (
                 <p>
-                  В проверенной части ошибок нет. Полная проверка персонажа ещё
-                  не выполнена.
+                  В характеристиках, хитах и повышениях ошибок нет. Владения
+                  проверяются ниже; полная проверка персонажа ещё не выполнена.
                 </p>
               )}
               <p className="hint">
@@ -412,6 +423,7 @@ export function ProgressionEditor({
               </p>
             </section>
           )}
+          {preview && <ProficiencyPreview value={value} base={preview} />}
           <p className="hint">
             Источники:{" "}
             <a

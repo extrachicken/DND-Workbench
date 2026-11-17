@@ -27,6 +27,8 @@ function build(levels = 1): Progression {
       classId: "fighter",
       hp: index === 0 ? "first" : "average",
       improvement: null,
+      skills: [],
+      expertise: [],
     })),
   };
 }
@@ -137,7 +139,13 @@ describe("Предпросмотр основы сборки 2014", () => {
     (hp) => {
       const p = build(2);
       p.allowMulticlass = true;
-      p.levels[1] = { classId: "rogue", hp, improvement: null };
+      p.levels[1] = {
+        classId: "rogue",
+        hp,
+        improvement: null,
+        skills: [],
+        expertise: [],
+      };
       expect(previewProgression(p).hp).toBeNull();
       expect(previewProgression(p).issues).toHaveLength(1);
     },

@@ -2,6 +2,7 @@ import { legacyWorkspaceSchema } from "./legacy";
 import { characterBuildSchema, runtimeStateSchema } from "./character";
 import { makeCampaign, type Campaign } from "./campaign";
 import { z } from "zod";
+import { progressionSchema } from "./progression";
 import {
   appWorkspaceSchema,
   MAX_BACKUP_BYTES,
@@ -138,10 +139,61 @@ export function migrateV4(raw: unknown): AppWorkspace {
   const old = v4Schema.parse(raw);
   return appWorkspaceSchema.parse({
     ...old,
-    version: 5,
+    version: 6,
     characters: old.characters.map((c) => ({
       ...c,
       build: { ...c.build, campaignId: null, progression: null },
+    })),
+  });
+}
+// v5 keeps its exact catalog and level shape at the read-only boundary.
+const v5ProgressionSchema = progressionSchema.extend({
+  catalog: z.literal("srd-5.1-starter-1"),
+  levels: z
+    .array(
+      progressionSchema.shape.levels.element.omit({
+        skills: true,
+        expertise: true,
+      }),
+    )
+    .min(1)
+    .max(20),
+});
+const v5Schema = z.object({
+  ...appWorkspaceSchema.shape,
+  version: z.literal(5),
+  characters: z
+    .array(
+      z.object({
+        ...historicalCharacterSchema.shape,
+        build: characterBuildSchema.extend({
+          progression: v5ProgressionSchema.nullable(),
+        }),
+      }),
+    )
+    .max(101),
+});
+export function migrateV5(raw: unknown): AppWorkspace {
+  const old = v5Schema.parse(raw);
+  return appWorkspaceSchema.parse({
+    ...old,
+    version: 6,
+    characters: old.characters.map((c) => ({
+      ...c,
+      build: {
+        ...c.build,
+        progression: c.build.progression
+          ? {
+              ...c.build.progression,
+              catalog: "srd-5.1-starter-2",
+              levels: c.build.progression.levels.map((level) => ({
+                ...level,
+                skills: [],
+                expertise: [],
+              })),
+            }
+          : null,
+      },
     })),
   });
 }
@@ -154,6 +206,7 @@ export function decodeBackup(raw: string): AppWorkspace {
     if (value.version === 2) return migrateV2(value);
     if (value.version === 3) return migrateV3(value);
     if (value.version === 4) return migrateV4(value);
+    if (value.version === 5) return migrateV5(value);
   }
   return appWorkspaceSchema.parse(value);
 }

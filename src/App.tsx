@@ -180,7 +180,7 @@ export function App() {
                 : nav.find((n) => n.id === page)?.title || "Персонаж"}
             </strong>
           </span>
-          <span className="prototype">ПРОТОТИП · 0.5</span>
+          <span className="prototype">ПРОТОТИП · 0.6</span>
         </header>
         <main id="main" tabIndex={-1}>
           {page === "characters" && (
