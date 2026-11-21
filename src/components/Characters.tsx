@@ -9,6 +9,7 @@ import {
   Users,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { characterRoute } from "../hooks/usePage";
 import { ProgressionEditor } from "./ProgressionEditor";
 import { previewProgression } from "../progression";
 import type { Campaign } from "../campaign";
@@ -92,7 +93,7 @@ export function Characters({
                   )}
                 </div>
                 <span className="tag">
-                  {c.kind === "demo" ? "Учебная копия" : "Черновик"}
+                  {c.kind === "demo" ? "Игровой лист" : "Черновик"}
                 </span>
                 {c.id === workspace.activeCharacterId && (
                   <span className="active-label">Выбран</span>
@@ -106,9 +107,9 @@ export function Characters({
               </p>
               <p className="hint">
                 {c.kind === "demo"
-                  ? "Игровой лист для проверки интерфейса"
+                  ? "Хиты, ячейки, снаряжение и история"
                   : c.build.progression
-                    ? "Основа сборки сохранена. Полный игровой лист ещё впереди."
+                    ? "Характеристики, уровни и владения сохранены."
                     : "Образ и история. Можно добавить характеристики и уровни."}
               </p>
               <div className="card-actions">
@@ -130,12 +131,11 @@ export function Characters({
                     <button
                       className="primary"
                       onClick={() =>
-                        void save(
-                          (s) => selectCharacter(s, c.id),
-                          "Персонаж выбран",
-                        ).then((ok) => {
-                          if (ok) location.hash = "character";
-                        })
+                        void save((s) => selectCharacter(s, c.id), "").then(
+                          (ok) => {
+                            if (ok) location.hash = characterRoute(c.id);
+                          },
+                        )
                       }
                     >
                       {c.kind === "draft" ? "Открыть черновик" : "Открыть лист"}
@@ -310,9 +310,8 @@ export function DraftEditor({
             </ol>
           )}
           <p className="notice">
-            Сохраните образ и заполните основу сборки. Проверка правил пока
-            охватывает характеристики, хиты и владения Воина и Плута. Полный
-            игровой лист ещё впереди.
+            Для черновика достаточно имени, происхождения и класса. Историю и
+            решения по уровням можно добавить позже.
           </p>
           <form
             onSubmit={(e) => {
@@ -414,6 +413,7 @@ export function DraftEditor({
               )}
               {(character || step === 4) && (
                 <ProgressionEditor
+                  className={className}
                   value={progression}
                   onChange={(p) => edit(() => setProgression(p))}
                   campaignId={campaignId}
@@ -423,7 +423,13 @@ export function DraftEditor({
                 />
               )}
             </fieldset>
-            <div className="form-footer">
+            <div
+              className={
+                character || step === 4
+                  ? "form-footer editor-save"
+                  : "form-footer"
+              }
+            >
               {!character && step > 1 ? (
                 <button type="button" onClick={() => setStep(step - 1)}>
                   Назад
@@ -452,12 +458,11 @@ export function DraftEditor({
             </div>
           </form>
         </section>
-        <aside className="quiet-note">
+        <aside className="quiet-note" aria-label="О черновике">
           <Feather size={24} />
           <h3>Сначала — замысел</h3>
           <p>
-            Набросайте образ и вернитесь к нему в любой момент. Черновики
-            хранятся отдельно от учебного листа Гу Ченя.
+            Сохраните замысел персонажа и возвращайтесь к нему между сессиями.
           </p>
           <p>
             Архив сохраняет всё содержимое персонажа. Если передумаете,

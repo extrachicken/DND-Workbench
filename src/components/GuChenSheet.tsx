@@ -15,7 +15,8 @@ import {
 } from "lucide-react";
 import { damage, heal, rollDie, signed, spendSlot } from "../model";
 import type { Character } from "../character";
-import { deriveDemoStats } from "../demo";
+import { guChenBiography } from "../workspace";
+import { deriveGuChenStats } from "../gu-chen";
 import { Empty } from "./Empty";
 import { findSpells, SpellList, SpellSearch } from "./Spells";
 
@@ -36,7 +37,7 @@ export type SheetControls = {
   setPhysical: (value: string) => void;
 };
 
-export function DemoSheet({
+export function GuChenSheet({
   character,
   metric,
   save,
@@ -66,7 +67,7 @@ export function DemoSheet({
     setPhysical,
   } = controls;
   const { build, runtime: s } = character;
-  const derived = deriveDemoStats(character);
+  const derived = deriveGuChenStats(character);
   if (!derived) return null;
   const saveRuntime = (
     update: (
@@ -104,19 +105,13 @@ export function DemoSheet({
   return (
     <>
       <div className="page-heading">
-        <div>
-          <div className="eyebrow">ИСТОРИЯ ПРОДОЛЖАЕТСЯ</div>
-          <h1>Ваш персонаж</h1>
-        </div>
+        <a href="#characters">← Все персонажи</a>
         <a className="button secondary create-link" href="#create">
           <Plus size={17} />
           <span className="wide-label">Создать персонажа</span>
           <span className="compact-label">Создать</span>
         </a>
       </div>
-      <a className="back-link" href="#characters">
-        ← Все персонажи
-      </a>
       <section className="character-banner">
         <div className="avatar portrait">
           {build.portrait ? (
@@ -136,12 +131,10 @@ export function DemoSheet({
         <div className="character-identity">
           <div className="inline">
             <span className="eyebrow">ХРАНИТЕЛЬ ДУШ</span>
-            <span className="tag">Учебная копия</span>
           </div>
-          <h2>{build.name}</h2>
+          <h1>{build.name}</h1>
           <p>
-            {build.ancestry} · Мудрец <span className="dot-separator">·</span>{" "}
-            {build.className}
+            {build.ancestry} · Мудрец · {build.className}
           </p>
           <div className="inline">
             <span className="badge">
@@ -170,28 +163,27 @@ export function DemoSheet({
       </div>
       {tab === "Обзор" && (
         <>
-          <div className="stat-grid">
-            {derived.abilities.map(
-              ({ name, score: value, modifier: bonus }) => (
-                <article
-                  className={`stat ${name === "Интеллект" ? "prime" : ""}`}
-                  key={name}
-                >
-                  <span>{name}</span>
-                  <strong>{signed(bonus)}</strong>
-                  <small>{value}</small>
-                </article>
-              ),
-            )}
-          </div>
           <div className="play-grid">
+            <div className="stat-grid">
+              {derived.abilities.map(
+                ({ name, score: value, modifier: bonus }) => (
+                  <article
+                    className={`stat ${name === "Интеллект" ? "prime" : ""}`}
+                    key={name}
+                  >
+                    <span>{name}</span>
+                    <strong>{signed(bonus)}</strong>
+                    <small>{value}</small>
+                  </article>
+                ),
+              )}
+            </div>
             <div className="primary-column">
               <section className="panel health">
                 <div className="section-heading">
-                  <h3>
+                  <h2 className="sheet-heading">
                     <Heart size={18} /> Здоровье
-                  </h3>
-                  <span className="muted small">Состояние учебной копии</span>
+                  </h2>
                 </div>
                 <div className="health-display">
                   <div>
@@ -261,9 +253,9 @@ export function DemoSheet({
               </section>
               <section className="panel">
                 <div className="section-heading">
-                  <h3>
+                  <h2 className="sheet-heading">
                     <Sparkles size={18} /> Ячейки заклинаний
-                  </h3>
+                  </h2>
                   <span className="badge">1 круг</span>
                 </div>
                 <div className="slot-row">
@@ -316,9 +308,9 @@ export function DemoSheet({
               </section>
               <section className="panel">
                 <div className="section-heading">
-                  <h3>
+                  <h2 className="sheet-heading">
                     <ScrollText size={18} /> Навыки и особенности
-                  </h3>
+                  </h2>
                   <span className="muted small">Из листа Гу Ченя</span>
                 </div>
                 <div className="skill-row">
@@ -382,9 +374,9 @@ export function DemoSheet({
               </section>
               <section className="panel dice-panel">
                 <div className="section-heading">
-                  <h3>
+                  <h2 className="sheet-heading">
                     <Dice5 size={18} /> Бросок кубика
-                  </h3>
+                  </h2>
                   <span className="muted small">Без модификаторов</span>
                 </div>
                 <div className="dice-types">
@@ -438,9 +430,9 @@ export function DemoSheet({
                   </form>
                 </details>
               </section>
-              <aside className="quiet-note">
+              <aside className="quiet-note" aria-label="Журнал приключений">
                 <Feather size={21} />
-                <h3>Место для вашей истории</h3>
+                <h2 className="sheet-heading">Место для вашей истории</h2>
                 <p>
                   Сохраните важную встречу, новую зацепку или обещание, которое
                   нельзя забыть.
@@ -456,12 +448,12 @@ export function DemoSheet({
       {tab === "Заклинания" && (
         <section className="panel">
           <div className="section-heading">
-            <h3>Книга заклинаний</h3>
+            <h2 className="sheet-heading">Книга заклинаний</h2>
             <span className="badge">9 записей из листа</span>
           </div>
           <p className="muted">
-            Список для проверки интерфейса. Подготовка, описания и применение
-            заклинаний появятся позже.
+            Найдите заклинание по русскому или английскому названию. Остаток
+            ячеек ведётся на вкладке «Обзор».
           </p>
           <SpellSearch query={query} setQuery={setQuery} />
           <SpellList list={spellList} />
@@ -470,10 +462,9 @@ export function DemoSheet({
       {tab === "Инвентарь" && (
         <section className="panel">
           <div className="section-heading">
-            <h3>
+            <h2 className="sheet-heading">
               <Sword size={18} /> Инвентарь
-            </h3>
-            <span className="muted small">Учебная копия</span>
+            </h2>
           </div>
           <p className="muted">
             Добавленные предметы пока не меняют КД, атаки и нагрузку
@@ -519,7 +510,7 @@ export function DemoSheet({
           {s.inventory.length === 0 ? (
             <Empty
               title="В рюкзаке пока пусто"
-              text="Снаряжение из исходного листа ещё не перенесено. Здесь можно попробовать добавление и расход предметов."
+              text="Добавьте первый предмет. В списке можно менять количество и отмечать снаряжение."
             />
           ) : (
             s.inventory.map((item) => (
@@ -589,7 +580,7 @@ export function DemoSheet({
       )}
       {tab === "История" && (
         <section className="panel">
-          <h3>За именем — целая жизнь</h3>
+          <h2 className="sheet-heading">За именем — целая жизнь</h2>
           <p className="muted">
             История и портрет сохраняются только на этом устройстве.
           </p>
@@ -609,7 +600,14 @@ export function DemoSheet({
             История персонажа
             <textarea
               key={character.id}
-              defaultValue={build.lore}
+              defaultValue={
+                character.id === "gu-chen-demo" &&
+                build.lore ===
+                  guChenBiography +
+                    "\n\nЭто учебная копия. Дополните историю своими заметками."
+                  ? guChenBiography
+                  : build.lore
+              }
               rows={12}
               onChange={(e) => {
                 const text = e.target.value;

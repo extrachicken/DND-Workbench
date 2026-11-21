@@ -68,7 +68,9 @@ export const progressionSchema = z.object({
     .max(20),
 });
 export type Progression = z.infer<typeof progressionSchema>;
-export function emptyProgression(): Progression {
+export function emptyProgression(
+  firstClass: SupportedClass = "fighter",
+): Progression {
   return {
     catalog: "srd-5.1-starter-2",
     baseScores: {
@@ -86,7 +88,7 @@ export function emptyProgression(): Progression {
     extraFeat: null,
     levels: [
       {
-        classId: "fighter",
+        classId: firstClass,
         hp: "first",
         improvement: null,
         skills: [],

@@ -46,7 +46,7 @@ export function SpellList({ list }: { list: string[][] }) {
       {list.length === 0 ? (
         <Empty
           title="Ничего не найдено"
-          text="Попробуйте другое название. В прототипе доступно 9 записей."
+          text="Попробуйте часть русского или английского названия."
         />
       ) : (
         list.map(([ru, en, level]) => (

@@ -91,6 +91,8 @@ export function makeDraft(
     runtime: { hp: 0, tempHp: 0, slotsRemaining: null, inventory: [] },
   });
 }
+export const guChenBiography =
+  "Гу Чень — Хранитель душ. Его настоящее имя — Синь Дзин. За образом учёного скрывается агент двора Хань.";
 export function initialAppWorkspace(): AppWorkspace {
   return {
     version: 6,
@@ -111,7 +113,7 @@ export function initialAppWorkspace(): AppWorkspace {
           campaignId: null,
           progression: null,
           portrait: "",
-          lore: "Гу Чень — Хранитель душ. Его настоящее имя — Синь Дзин. За образом учёного скрывается агент двора Хань.\n\nЭто учебная копия. Дополните историю своими заметками.",
+          lore: guChenBiography,
         },
         runtime: { hp: 30, tempHp: 0, slotsRemaining: null, inventory: [] },
       },
@@ -229,5 +231,46 @@ export function saveCampaign(
     campaigns: baseline
       ? s.campaigns.map((c) => (c.id === campaign.id ? campaign : c))
       : [...s.campaigns, campaign],
+  };
+}
+
+export type SessionNote = AppWorkspace["notes"][number];
+
+const noteFields = ["title", "text", "campaignId"] as const;
+
+export function sessionNoteConflicts(
+  current: SessionNote | undefined,
+  baseline: SessionNote,
+  draft: SessionNote,
+) {
+  return (
+    !current ||
+    noteFields.some(
+      (field) =>
+        draft[field] !== baseline[field] &&
+        current[field] !== baseline[field] &&
+        current[field] !== draft[field],
+    )
+  );
+}
+
+// Compare each edited field inside the same transaction as the write. Edits to
+// different fields can coexist, even when the two tabs opened the same version.
+export function saveSessionNote(
+  s: AppWorkspace,
+  baseline: SessionNote,
+  draft: SessionNote,
+): AppWorkspace {
+  const current = s.notes.find((note) => note.id === baseline.id);
+  if (!current || sessionNoteConflicts(current, baseline, draft))
+    throw new Error("Запись изменена в другой вкладке.");
+  let merged = current;
+  for (const field of noteFields) {
+    if (baseline[field] === draft[field]) continue;
+    merged = { ...merged, [field]: draft[field] };
+  }
+  return {
+    ...s,
+    notes: s.notes.map((note) => (note.id === current.id ? merged : note)),
   };
 }

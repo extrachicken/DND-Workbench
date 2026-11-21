@@ -141,7 +141,9 @@ h1 {
 h2 {
   font-size: 28px;
 }
+.sheet-heading,
 h3 {
+  font-family: inherit;
   font-size: 15px;
   font-weight: 600;
   margin-bottom: 18px;
@@ -369,11 +371,6 @@ strong {
   font-weight: 450;
   color: #c4cad1;
 }
-.prototype {
-  font-size: 9px;
-  letter-spacing: 1.4px;
-  color: #ac9978;
-}
 main {
   max-width: 1270px;
   margin: auto;
@@ -464,7 +461,7 @@ main {
 .character-identity {
   min-width: 0;
 }
-.character-identity h2 {
+.character-identity h1 {
   font-size: 38px;
   margin: 10px 0 8px;
   color: #f0eade;
@@ -524,6 +521,7 @@ main {
   color: #f1e6cf;
 }
 .stat-grid {
+  grid-column: 1 / -1;
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
@@ -590,13 +588,13 @@ main {
   margin-bottom: 20px;
   flex-wrap: wrap;
 }
-.section-heading h3 {
+.section-heading .sheet-heading {
   display: flex;
   gap: 10px;
   align-items: center;
   margin: 0;
 }
-.section-heading h3 svg {
+.section-heading .sheet-heading svg {
   color: #aca28e;
 }
 .health-display {
@@ -804,7 +802,7 @@ main {
   color: #b49a6e;
   margin-bottom: 17px;
 }
-.quiet-note h3 {
+.quiet-note :is(h2, h3) {
   color: #d9d8d2;
   font-family: Georgia, serif;
   font-size: 21px;
@@ -1312,9 +1310,6 @@ details button {
   .topbar span {
     font-size: 10px;
   }
-  .prototype {
-    font-size: 8px !important;
-  }
   main {
     padding: 27px 20px calc(90px + env(safe-area-inset-bottom));
   }
@@ -1337,7 +1332,7 @@ details button {
     width: 76px;
     height: 94px;
   }
-  .character-identity h2 {
+  .character-identity h1 {
     font-size: 32px;
   }
   .character-identity .eyebrow {
@@ -1432,7 +1427,7 @@ details button {
   .character-identity {
     flex: 1;
   }
-  .character-identity h2 {
+  .character-identity h1 {
     font-size: 31px;
     margin: 9px 0 6px;
   }
@@ -1467,9 +1462,6 @@ details button {
   }
   .level strong {
     font-size: 24px;
-  }
-  .dot-separator {
-    display: none;
   }
   .sheet-tabs {
     gap: 0;
@@ -1532,11 +1524,14 @@ details button {
   .primary-column {
     display: contents;
   }
+  .play-grid > .stat-grid {
+    grid-row: 3;
+  }
   .combat-grid {
-    grid-row: 1;
+    grid-row: 2;
   }
   .health {
-    grid-row: 2;
+    grid-row: 1;
   }
   .quiet-note {
     padding: 12px 6px;
@@ -1840,4 +1835,26 @@ details button {
 .proficiency-results small {
   margin-top: 4px;
   color: var(--muted);
+}
+
+.play-grid > .stat-grid {
+  margin-bottom: 0;
+}
+.progression-editor .hint a {
+  text-decoration: underline;
+  text-underline-offset: 0.16em;
+}
+@media (max-width: 800px) {
+  .editor-save {
+    position: sticky;
+    bottom: calc(65px + env(safe-area-inset-bottom));
+    z-index: 3;
+    padding: 8px 0;
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+  }
+  .workspace:has(.editor-save) .save-status {
+    top: 8px;
+    bottom: auto;
+  }
 }

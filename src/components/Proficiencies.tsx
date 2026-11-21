@@ -119,7 +119,7 @@ export function ProficiencyPreview({
           и владениям. Черновик можно сохранить сейчас.
         </p>
       )}
-      <details open>
+      <details>
         <summary>Навыки и пассивные проверки</summary>
         <p className="hint">
           Пассивная проверка: 10 + бонус, без преимущества и помехи.

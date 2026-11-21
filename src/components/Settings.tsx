@@ -78,7 +78,7 @@ export function Settings({
       </div>
       <div className="settings-grid">
         <section className="panel">
-          <h3>Ваши данные</h3>
+          <h2>Ваши данные</h2>
           <p className="muted">
             Лист, заметки и портрет хранятся в этом браузере. Очистка данных
             сайта удалит их. Сохраняйте копии вне приложения.
@@ -106,7 +106,7 @@ export function Settings({
           </p>
         </section>
         <section className="panel">
-          <h3>Точки восстановления</h3>
+          <h2>Точки восстановления</h2>
           <p className="muted">
             Снимки перед обновлениями формата и состояние перед последним
             импортом. Скачайте нужную копию и восстановите её через импорт. Они
@@ -154,7 +154,7 @@ export function Settings({
           )}
         </section>
         <section className="panel">
-          <h3>Отображение и доступность</h3>
+          <h2>Отображение и доступность</h2>
           <label className="checkbox">
             <input
               autoComplete="off"
@@ -165,15 +165,15 @@ export function Settings({
             Метрические единицы
           </label>
           <p className="hint">
-            Храним исходные единицы. 30 футов ≈ 9,14 м; округление сетки будет
-            отдельной настройкой.
+            Скорость можно показывать в метрах. В листе сохраняется исходное
+            значение в футах.
           </p>
           <div className="divider" />
-          <h3>Работа без интернета</h3>
+          <h2>Работа без интернета</h2>
           <p className="muted">
             {offlineReady
               ? "Файлы приложения подготовлены для офлайн-доступа."
-              : "Для офлайн-доступа нужна загруженная production-сборка. В режиме разработки кеш не включён."}
+              : "Офлайн-файлы ещё не готовы. Оставьте приложение открытым при подключении к сети."}
           </p>
           {needRefresh && (
             <button onClick={() => void updateServiceWorker(true)}>

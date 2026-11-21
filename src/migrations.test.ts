@@ -7,7 +7,7 @@ import {
   makeDraft,
   MAX_BACKUP_BYTES,
 } from "./workspace";
-import { deriveDemoStats } from "./demo";
+import { deriveGuChenStats } from "./gu-chen";
 import { damage } from "./model";
 
 describe("Разделение сборки, состояния и вычислений", () => {
@@ -69,7 +69,7 @@ describe("Разделение сборки, состояния и вычисл�
     character.runtime = { ...damage(character.runtime, 7), slotsRemaining: 0 };
     const before = structuredClone(character);
     for (let i = 0; i < 5; i++) {
-      expect(deriveDemoStats(character)).toMatchObject({
+      expect(deriveGuChenStats(character)).toMatchObject({
         maxHp: 41,
         slotsMax: 2,
         armorClass: 16,
@@ -85,7 +85,7 @@ describe("Разделение сборки, состояния и вычисл�
   });
   it("черновик не получает вычисленные характеристики Гу Ченя", () => {
     expect(
-      deriveDemoStats(
+      deriveGuChenStats(
         makeDraft({
           id: "d",
           name: "Другой",

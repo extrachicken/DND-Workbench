@@ -14,6 +14,7 @@ import { campaignLabel, type Campaign } from "../campaign";
 
 export function ProgressionEditor({
   value,
+  className,
   onChange,
   campaignId,
   onCampaignChange,
@@ -21,12 +22,19 @@ export function ProgressionEditor({
   previous,
 }: {
   value: Progression | null;
+  className: string;
   onChange: (value: Progression) => void;
   campaignId: string | null;
   onCampaignChange: (id: string | null) => void;
   campaigns: Campaign[];
   previous: Progression | null;
 }) {
+  const chosenClass = className.trim().toLocaleLowerCase("ru");
+  const firstClass = (Object.keys(progressionCatalog) as SupportedClass[]).find(
+    (id) =>
+      id === chosenClass ||
+      progressionCatalog[id].name.toLocaleLowerCase("ru") === chosenClass,
+  );
   const campaign = campaigns.find((c) => c.id === campaignId);
   const preview = value ? previewProgression(value, campaign) : null;
   const proficiencies = value ? resolveProficiencies(value) : null;
@@ -65,14 +73,23 @@ export function ProgressionEditor({
         </p>
       )}
       <p className="notice">
-        Набор 2014: Воин, Плут, черта «Борец». Здесь проверяется основа сборки.
-        Подключены навыки и владения классов. Предыстория, подклассы, снаряжение
-        и боевые возможности ещё впереди; персонаж остаётся черновиком.
+        Расчёт по правилам 2014 учитывает уровни Воина и Плута, классовые
+        владения и черту «Борец».
       </p>
       {!value ? (
-        <button type="button" onClick={() => onChange(emptyProgression())}>
-          Заполнить основу сборки
-        </button>
+        firstClass ? (
+          <button
+            type="button"
+            onClick={() => onChange(emptyProgression(firstClass))}
+          >
+            Заполнить основу сборки
+          </button>
+        ) : (
+          <p className="hint">
+            Для класса «{className}» доступна запись образа и истории. Для
+            расчёта уровней выберите Воина или Плута в поле «Название класса».
+          </p>
+        )
       ) : (
         <>
           <p className="hint">

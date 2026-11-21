@@ -8,7 +8,7 @@ import {
   type AbilityScores,
 } from "./rules";
 
-// Existing Gu Chen UI fixture, not a validated character-creation rules engine.
+// Fixed decisions from Gu Chen’s character sheet.
 // Source and unresolved decisions: docs/gu-chen-validation-case.md.
 const abilities = [
   ["Сила", "str"],
@@ -40,11 +40,11 @@ export type DerivedStats = {
   perception: number;
   passivePerception: number;
 };
-export function deriveDemoStats(character: Character): DerivedStats | null {
+export function deriveGuChenStats(character: Character): DerivedStats | null {
   if (character.kind !== "demo") return null;
   const level = 4;
   const perception = skillCheck(scores, "perception", level, [
-    { source: "demo:quick-learning", rank: "proficient" },
+    { source: "gu-chen:quick-learning", rank: "proficient" },
   ]);
   return {
     abilities: abilities.map(([name, ability]) => ({
@@ -57,16 +57,16 @@ export function deriveDemoStats(character: Character): DerivedStats | null {
     level,
     experience: 2700,
     armorClass: 16,
-    initiative: initiative(scores.dex, [{ source: "demo:alert", value: 5 }])
+    initiative: initiative(scores.dex, [{ source: "gu-chen:alert", value: 5 }])
       .total,
     speedFeet: 30,
     proficiency: proficiencyBonus(level),
     investigation: skillCheck(scores, "investigation", level, [
-      { source: "demo:investigation-expertise", rank: "expertise" },
+      { source: "gu-chen:investigation-expertise", rank: "expertise" },
     ]).total,
     perception: perception.total,
     passivePerception: passiveCheck(perception, {
-      bonuses: [{ source: "demo:observant", value: 5 }],
+      bonuses: [{ source: "gu-chen:observant", value: 5 }],
     }).total,
   };
 }

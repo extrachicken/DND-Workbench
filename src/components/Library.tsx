@@ -13,11 +13,11 @@ export function Library({
       <div className="page-heading">
         <div className="eyebrow">ЗНАНИЯ ПОД РУКОЙ</div>
         <h1>Библиотека</h1>
-        <p className="muted">Официальные правила и авторские миры.</p>
+        <p className="muted">Книга заклинаний</p>
       </div>
       <p className="notice">
-        Пока здесь только названия 9 заклинаний Гу Ченя для проверки поиска.
-        Полный каталог 2014 и homebrew dnd.su ещё не подключён.
+        В библиотеке 9 заклинаний из книги Гу Ченя. Ищите их по русскому или
+        английскому названию.
       </p>
       <section className="panel">
         <SpellSearch query={query} setQuery={setQuery} />

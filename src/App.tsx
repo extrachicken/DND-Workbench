@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import {
@@ -17,13 +17,17 @@ import {
   type AppWorkspace,
 } from "./workspace";
 import type { Character } from "./character";
-import { Characters, DraftEditor } from "./components/Characters";
-import { DemoSheet } from "./components/DemoSheet";
+import {
+  Characters,
+  DraftEditor,
+  type SaveWorkspace,
+} from "./components/Characters";
+import { GuChenSheet } from "./components/GuChenSheet";
 import { Journal } from "./components/Journal";
 import { Library } from "./components/Library";
 import { Settings } from "./components/Settings";
 import { Empty } from "./components/Empty";
-import { usePage } from "./hooks/usePage";
+import { characterRoute, usePage } from "./hooks/usePage";
 
 const nav = [
   { id: "characters", title: "Персонажи", icon: Users },
@@ -33,11 +37,23 @@ const nav = [
 ];
 export function App() {
   const [dirty, setDirty] = useState(false);
-  const page = usePage(dirty);
+  const route = usePage(dirty);
+  const page = route.startsWith("character/") ? "character" : route;
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, [page]);
+  }, [route]);
   const data = useLiveQuery(() => db.documents.get("local"));
+
+  const lastCharacterId = data?.data.activeCharacterId;
+  useEffect(() => {
+    if (
+      route === "character" &&
+      location.hash === "#character" &&
+      lastCharacterId
+    ) {
+      location.replace("#" + characterRoute(lastCharacterId));
+    }
+  }, [route, lastCharacterId]);
 
   const [cached, setCached] = useState(false);
   useEffect(() => {
@@ -66,7 +82,7 @@ export function App() {
       ),
     );
   }, []);
-  async function saveApp(
+  const saveApp = useCallback(async function saveApp(
     update: (s: AppWorkspace) => AppWorkspace,
     message = "Сохранено на устройстве",
   ) {
@@ -78,12 +94,12 @@ export function App() {
     } catch (cause) {
       setError(
         cause instanceof Error && cause.message.includes("другой вкладке")
-          ? cause.message + " Скопируйте свой текст перед перезагрузкой."
+          ? cause.message
           : "Не удалось сохранить изменения. Проверьте поля, свободное место и разрешение на хранение данных.",
       );
       return false;
     }
-  }
+  }, []);
   if (!data)
     return (
       <main className="loading">
@@ -93,7 +109,9 @@ export function App() {
       </main>
     );
   const workspace = data.data;
-  const character = activeCharacter(workspace);
+  const character = route.startsWith("character/")
+    ? workspace.characters.find((c) => characterRoute(c.id) === route)
+    : activeCharacter(workspace);
   async function save(update: (s: Character) => Character, message?: string) {
     return saveApp((v) => updateCharacter(v, character!.id, update), message);
   }
@@ -109,7 +127,7 @@ export function App() {
       >
         Перейти к содержимому
       </a>
-      <aside className="sidebar">
+      <aside className="sidebar" aria-label="Меню рабочего стола">
         <a href="#characters" className="brand">
           <img src="/icon.svg" width="38" height="38" alt="" />
           <span>
@@ -145,7 +163,7 @@ export function App() {
           <span className="eyebrow">ТЕКУЩИЙ ПЕРСОНАЖ</span>
           {character ? (
             <>
-              <a href="#character">
+              <a href={"#" + characterRoute(character.id)}>
                 <div className="avatar tiny">
                   <Feather size={17} />
                 </div>
@@ -155,7 +173,7 @@ export function App() {
                 </div>
               </a>
               <span className="tag">
-                {character.kind === "demo" ? "Учебная копия" : "Черновик"}
+                {character.kind === "demo" ? "Игровой лист" : "Черновик"}
               </span>
             </>
           ) : (
@@ -180,54 +198,43 @@ export function App() {
                 : nav.find((n) => n.id === page)?.title || "Персонаж"}
             </strong>
           </span>
-          <span className="prototype">ПРОТОТИП · 0.6</span>
         </header>
         <main id="main" tabIndex={-1}>
           {page === "characters" && (
             <Characters workspace={workspace} save={saveApp} />
           )}
-          {page === "character" && character?.kind === "draft" && (
-            <DraftEditor
-              key={character.id}
+          {page === "character" && (
+            <CharacterPage
+              key={route}
+              character={character}
               campaigns={workspace.campaigns}
-              character={character}
               save={saveApp}
+              dirty={dirty}
               onDirty={setDirty}
-            />
-          )}
-          {page === "character" && !character && (
-            <section className="panel empty">
-              <h1>Выберите персонажа</h1>
-              <p>
-                Все персонажи могут быть в архиве. Их можно восстановить в
-                списке.
-              </p>
-              <a className="button primary" href="#characters">
-                К персонажам
-              </a>
-            </section>
-          )}
-          {page === "character" && character?.kind === "demo" && (
-            <DemoSheet
-              character={character}
-              metric={workspace.metric}
-              save={save}
-              controls={{
-                tab,
-                setTab,
-                amount,
-                setAmount,
-                roll,
-                setRoll,
-                die,
-                setDie,
-                physical,
-                setPhysical,
-              }}
-              query={query}
-              setQuery={setQuery}
-              setError={setError}
-            />
+            >
+              {character?.kind === "demo" && (
+                <GuChenSheet
+                  character={character}
+                  metric={workspace.metric}
+                  save={save}
+                  controls={{
+                    tab,
+                    setTab,
+                    amount,
+                    setAmount,
+                    roll,
+                    setRoll,
+                    die,
+                    setDie,
+                    physical,
+                    setPhysical,
+                  }}
+                  query={query}
+                  setQuery={setQuery}
+                  setError={setError}
+                />
+              )}
+            </CharacterPage>
           )}
           {page === "create" && (
             <DraftEditor
@@ -273,7 +280,6 @@ export function App() {
               DND Workbench <span className="gold">✧</span> Личный стол
               приключений
             </span>
-            <span>Прототип интерфейса · правила внедряются поэтапно</span>
           </footer>
         </main>
         <div
@@ -297,5 +303,57 @@ export function App() {
         </div>
       </div>
     </div>
+  );
+}
+
+function CharacterPage({
+  character,
+  campaigns,
+  save,
+  dirty,
+  onDirty,
+  children,
+}: {
+  character?: Character;
+  campaigns: AppWorkspace["campaigns"];
+  save: SaveWorkspace;
+  dirty: boolean;
+  onDirty: (value: boolean) => void;
+  children: ReactNode;
+}) {
+  const liveDraft =
+    character?.kind === "draft" && !character.archivedAt
+      ? character
+      : undefined;
+  const [initialDraft] = useState(liveDraft);
+  const draft = dirty && initialDraft ? initialDraft : liveDraft;
+  if (draft)
+    return (
+      <>
+        {!liveDraft && (
+          <p className="notice">
+            Исходный черновик заменён или перенесён в архив. Введённый текст
+            можно скопировать из открытых полей.
+          </p>
+        )}
+        <DraftEditor
+          character={draft}
+          campaigns={campaigns}
+          save={save}
+          onDirty={onDirty}
+        />
+      </>
+    );
+  if (character && !character.archivedAt) return children;
+  return (
+    <section className="panel empty">
+      <h1>Выберите персонажа</h1>
+      <p>
+        Откройте персонажа из списка. Персонажей в архиве можно восстановить.
+      </p>
+      <a className="button primary" href="#characters">
+        К персонажам
+      </a>
+    </section>
   );
 }

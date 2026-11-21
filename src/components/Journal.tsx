@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus, ScrollText } from "lucide-react";
-import type { AppWorkspace } from "../workspace";
+import { SessionEditor } from "./SessionEditor";
+import type { AppWorkspace, SessionNote } from "../workspace";
 import type { SaveWorkspace } from "./Characters";
 import { Campaigns } from "./Campaigns";
 import { campaignLabel } from "../campaign";
@@ -30,8 +31,31 @@ export function Journal({
     }
     return [...result.entries()];
   }, [workspace.notes]);
-  const activeNote =
-    workspace.notes.find((n) => n.id === noteId) || workspace.notes[0];
+  const [opened, setOpened] = useState<SessionNote | null>(
+    () =>
+      workspace.notes.find((n) => n.id === noteId) ??
+      workspace.notes[0] ??
+      null,
+  );
+  const [campaignDirty, setCampaignDirty] = useState(false);
+  const [noteDirty, setNoteDirty] = useState(false);
+  useEffect(() => {
+    onDirty(noteDirty || campaignDirty);
+    return () => onDirty(false);
+  }, [noteDirty, campaignDirty, onDirty]);
+  const activeNote = workspace.notes.find((n) => n.id === opened?.id);
+  useEffect(() => {
+    if (!opened && workspace.notes[0]) setOpened(workspace.notes[0]);
+  }, [opened, workspace.notes]);
+  function openNote(note: SessionNote) {
+    setOpened(note);
+    setNoteId(note.id);
+  }
+  function canLeaveNote() {
+    return (
+      !noteDirty || confirm("Оставить изменения этой записи без сохранения?")
+    );
+  }
   return (
     <>
       <div className="page-heading">
@@ -42,21 +66,19 @@ export function Journal({
         <button
           className="primary"
           onClick={() => {
-            const id = crypto.randomUUID();
-            void save((v) => ({
-              ...v,
-              notes: [
-                {
-                  id,
-                  title: `Сессия ${v.notes.length + 1}`,
-                  campaignId: activeNote?.campaignId ?? null,
-                  date: new Date().toISOString(),
-                  text: "",
-                },
-                ...v.notes,
-              ],
-            })).then((ok) => {
-              if (ok) setNoteId(id);
+            if (!canLeaveNote()) return;
+            let created: SessionNote;
+            void save((v) => {
+              created = {
+                id: crypto.randomUUID(),
+                title: `Сессия ${v.notes.length + 1}`,
+                campaignId: activeNote?.campaignId ?? null,
+                date: new Date().toISOString(),
+                text: "",
+              };
+              return { ...v, notes: [created, ...v.notes] };
+            }, "Сессия создана").then((ok) => {
+              if (ok) openNote(created);
             });
           }}
         >
@@ -64,8 +86,8 @@ export function Journal({
           Новая сессия
         </button>
       </div>
-      <Campaigns workspace={workspace} save={save} onDirty={onDirty} />
-      {workspace.notes.length === 0 ? (
+      <Campaigns workspace={workspace} save={save} onDirty={setCampaignDirty} />
+      {!opened && workspace.notes.length === 0 ? (
         <section className="panel">
           <Empty
             title="Первая страница вашей истории"
@@ -92,7 +114,9 @@ export function Journal({
                     key={n.id}
                     aria-pressed={activeNote?.id === n.id}
                     className={activeNote?.id === n.id ? "selected" : ""}
-                    onClick={() => setNoteId(n.id)}
+                    onClick={() => {
+                      if (n.id !== opened?.id && canLeaveNote()) openNote(n);
+                    }}
                   >
                     <ScrollText size={16} />
                     <span>
@@ -104,71 +128,16 @@ export function Journal({
               </div>
             ))}
           </aside>
-          {activeNote && (
-            <section className="panel note-editor" key={activeNote.id}>
-              <div className="eyebrow">ЗАПИСЬ СЕССИИ</div>
-              <label>
-                Название
-                <input
-                  autoComplete="off"
-                  maxLength={150}
-                  defaultValue={activeNote.title}
-                  onBlur={(e) => {
-                    const text = e.target.value.trim();
-                    if (text)
-                      void save((v) => ({
-                        ...v,
-                        notes: v.notes.map((n) =>
-                          n.id === activeNote.id ? { ...n, title: text } : n,
-                        ),
-                      }));
-                  }}
-                />
-              </label>
-              <label>
-                Кампания или ваншот
-                <select
-                  value={activeNote.campaignId ?? ""}
-                  onChange={(e) => {
-                    const campaignId = e.target.value || null;
-                    void save((v) => ({
-                      ...v,
-                      notes: v.notes.map((n) =>
-                        n.id === activeNote.id ? { ...n, campaignId } : n,
-                      ),
-                    }));
-                  }}
-                >
-                  <option value="">Без кампании</option>
-                  {workspace.campaigns.map((campaign) => (
-                    <option key={campaign.id} value={campaign.id}>
-                      {campaignLabel(campaign, workspace.campaigns)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Что произошло
-                <textarea
-                  rows={15}
-                  maxLength={30000}
-                  defaultValue={activeNote.text}
-                  placeholder="События, встречи, добыча, планы на следующую сессию…"
-                  onChange={(e) => {
-                    const text = e.target.value;
-                    void save((v) => ({
-                      ...v,
-                      notes: v.notes.map((n) =>
-                        n.id === activeNote.id ? { ...n, text } : n,
-                      ),
-                    }));
-                  }}
-                />
-              </label>
-              <p className="hint">
-                Текст сохраняется автоматически; названия — при выходе из поля.
-              </p>
-            </section>
+          {opened && (
+            <SessionEditor
+              key={opened.id}
+              initial={opened}
+              current={activeNote}
+              campaigns={workspace.campaigns}
+              save={save}
+              onDirty={setNoteDirty}
+              onOpen={openNote}
+            />
           )}
         </div>
       )}

@@ -15,7 +15,7 @@ import {
   type ArmorFormula,
   type LevelDecision,
 } from "./rules";
-import { deriveDemoStats } from "./demo";
+import { deriveGuChenStats } from "./gu-chen";
 import { initialAppWorkspace, makeDraft } from "./workspace";
 
 const guChen: AbilityScores = {
@@ -112,7 +112,7 @@ describe("Характеристики и владения 2014", () => {
     });
   });
   it("заменяет характеристику проверки, сохраняя компетентность (GC-05)", () => {
-    const grants = [{ source: "demo:insight", rank: "expertise" }] as const;
+    const grants = [{ source: "gu-chen:insight", rank: "expertise" }] as const;
     expect(skillCheck(guChen, "insight", 4, grants).total).toBe(6);
     expect(
       skillCheck(guChen, "insight", 4, grants, { ability: "int" }).total,
@@ -305,7 +305,7 @@ describe("Подключение к учебному листу", () => {
         slotsRemaining,
       };
       const before = structuredClone(character);
-      const derived = deriveDemoStats(character);
+      const derived = deriveGuChenStats(character);
       expect(derived).toMatchObject({
         maxHp: 30,
         slotsMax: 2,
@@ -316,14 +316,14 @@ describe("Подключение к учебному листу", () => {
         passivePerception: 19,
         armorClass: 16,
       });
-      expect(deriveDemoStats(character)).toEqual(derived);
+      expect(deriveGuChenStats(character)).toEqual(derived);
       expect(character).toEqual(before);
       expect(character).not.toHaveProperty("derived");
     },
   );
   it("не создаёт игровой лист для незавершённого черновика", () => {
     expect(
-      deriveDemoStats(
+      deriveGuChenStats(
         makeDraft({
           id: "draft",
           name: "Черновик",

@@ -9,7 +9,12 @@ import {
 } from "./db";
 import { damage } from "./model";
 import { initialLegacyWorkspace as initialWorkspace } from "./test-fixtures";
-import { initialAppWorkspace, makeDraft, updateCharacter } from "./workspace";
+import {
+  initialAppWorkspace,
+  makeDraft,
+  updateCharacter,
+  saveSessionNote,
+} from "./workspace";
 let db: WorkbenchDB;
 beforeEach(async () => {
   db = new WorkbenchDB(`test-${crypto.randomUUID()}`);
@@ -588,5 +593,53 @@ describe("Миграция решений по уровням из v4", () => {
       ),
     ).rejects.toThrow("другой вкладке");
     expect(await db.documents.get("local")).toEqual(current);
+  });
+});
+
+describe("Сохранение сессии в нескольких вкладках", () => {
+  const original = {
+    id: "session",
+    title: "Переправа",
+    text: "Нашли ключ",
+    campaignId: null,
+    date: "2026-11-21T00:00:00.000Z",
+  };
+  beforeEach(async () => {
+    await changeWorkspace((s) => ({ ...s, notes: [original] }), db);
+  });
+  it("объединяет одновременные правки разных полей", async () => {
+    await Promise.all([
+      changeWorkspace(
+        (s) => saveSessionNote(s, original, { ...original, title: "Мост" }),
+        db,
+      ),
+      changeWorkspace(
+        (s) =>
+          saveSessionNote(s, original, {
+            ...original,
+            text: "Нашли ключ и карту",
+          }),
+        db,
+      ),
+    ]);
+    expect((await db.documents.get("local"))?.data.notes).toEqual([
+      { ...original, title: "Мост", text: "Нашли ключ и карту" },
+    ]);
+  });
+  it("при конфликте одного поля откатывает и остальные изменения", async () => {
+    const latest = { ...original, text: "Кузнец помог" };
+    await changeWorkspace((s) => saveSessionNote(s, original, latest), db);
+    await expect(
+      changeWorkspace(
+        (s) =>
+          saveSessionNote(s, original, {
+            ...original,
+            title: "Новое название",
+            text: "Пошли к мосту",
+          }),
+        db,
+      ),
+    ).rejects.toThrow("другой вкладке");
+    expect((await db.documents.get("local"))?.data.notes).toEqual([latest]);
   });
 });
