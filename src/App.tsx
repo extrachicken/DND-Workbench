@@ -22,6 +22,7 @@ import {
   DraftEditor,
   type SaveWorkspace,
 } from "./components/Characters";
+import { PlayerSheet } from "./components/PlayerSheet";
 import { GuChenSheet } from "./components/GuChenSheet";
 import { Journal } from "./components/Journal";
 import { Library } from "./components/Library";
@@ -173,7 +174,7 @@ export function App() {
                 </div>
               </a>
               <span className="tag">
-                {character.kind === "demo" ? "Игровой лист" : "Черновик"}
+                {character.kind === "draft" ? "Черновик" : "Игровой лист"}
               </span>
             </>
           ) : (
@@ -212,6 +213,15 @@ export function App() {
               dirty={dirty}
               onDirty={setDirty}
             >
+              {character?.kind === "player" && (
+                <PlayerSheet
+                  character={character}
+                  campaign={workspace.campaigns.find(
+                    (c) => c.id === character.build.campaignId,
+                  )}
+                  save={saveApp}
+                />
+              )}
               {character?.kind === "demo" && (
                 <GuChenSheet
                   character={character}

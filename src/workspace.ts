@@ -5,7 +5,7 @@ export type { Character } from "./character";
 const id = z.string().min(1).max(100);
 export const appWorkspaceSchema = z
   .object({
-    version: z.literal(6),
+    version: z.literal(7),
     campaigns: z.array(campaignSchema).max(1000),
     activeCharacterId: id.nullable(),
     characters: z.array(characterSchema).max(101),
@@ -95,7 +95,7 @@ export const guChenBiography =
   "Гу Чень — Хранитель душ. Его настоящее имя — Синь Дзин. За образом учёного скрывается агент двора Хань.";
 export function initialAppWorkspace(): AppWorkspace {
   return {
-    version: 6,
+    version: 7,
     campaigns: [],
     activeCharacterId: "gu-chen-demo",
     metric: false,

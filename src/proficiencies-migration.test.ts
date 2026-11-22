@@ -67,7 +67,7 @@ describe("Миграция v5 → v6", () => {
     const old = oldWorkspace();
     const before = structuredClone(old);
     const moved = migrateV5(old);
-    expect(moved.version).toBe(6);
+    expect(moved.version).toBe(7);
     expect(moved.characters[0]).toEqual(old.characters[0]);
     const p = moved.characters[1].build.progression!;
     expect(p.catalog).toBe("srd-5.1-starter-2");
@@ -122,7 +122,7 @@ describe("Миграция v5 → v6", () => {
         if (outcome === "success") {
           await initialize(next);
           const saved = (await next.documents.get("local"))!;
-          expect(next.verno).toBe(7);
+          expect(next.verno).toBe(8);
           expect(saved.data).toEqual(migrateV5(data));
           expect(saved.backupBytes).toBe(jsonBytes(saved.data));
           expect((await next.recovery.get("migration-v5"))?.data).toEqual(data);

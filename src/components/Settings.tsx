@@ -66,7 +66,7 @@ export function Settings({
       setError("");
     } catch {
       setError(
-        "Не удалось восстановить копию. Нужен JSON Workbench версии 1, 2, 3, 4, 5 или 6 до 50 МБ и достаточно места в браузере. Исходные данные сохранены.",
+        "Не удалось восстановить копию. Нужен JSON Workbench версии от 1 до 7 до 50 МБ и достаточно места в браузере. Исходные данные сохранены.",
       );
     }
   }
@@ -102,7 +102,7 @@ export function Settings({
             />
           </label>
           <p className="hint">
-            JSON · версия 6 · до 50 МБ · импорт версий 1–5 поддерживается
+            JSON · версия 7 · до 50 МБ · импорт версий 1–6 поддерживается
           </p>
         </section>
         <section className="panel">
@@ -126,7 +126,9 @@ export function Settings({
                           ? "До решений по уровням"
                           : r.reason === "migration-v5"
                             ? "До навыков и владений"
-                            : "До последнего импорта"}
+                            : r.reason === "migration-v6"
+                              ? "До игровых листов Воина и Плута"
+                              : "До последнего импорта"}
                   <small>
                     {new Intl.DateTimeFormat("ru", {
                       dateStyle: "medium",

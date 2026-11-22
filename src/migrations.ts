@@ -98,7 +98,7 @@ const historicalCharacterSchema = z
     kind: z.enum(["demo", "draft"]),
     archivedAt: z.iso.datetime().nullable(),
     build: characterBuildSchema.omit({ campaignId: true, progression: true }),
-    runtime: runtimeStateSchema,
+    runtime: runtimeStateSchema.omit({ lastDamage: true }),
   })
   .refine(
     (c) => c.runtime.hp <= c.build.maxHp,
@@ -139,7 +139,7 @@ export function migrateV4(raw: unknown): AppWorkspace {
   const old = v4Schema.parse(raw);
   return appWorkspaceSchema.parse({
     ...old,
-    version: 6,
+    version: 7,
     characters: old.characters.map((c) => ({
       ...c,
       build: { ...c.build, campaignId: null, progression: null },
@@ -177,7 +177,7 @@ export function migrateV5(raw: unknown): AppWorkspace {
   const old = v5Schema.parse(raw);
   return appWorkspaceSchema.parse({
     ...old,
-    version: 6,
+    version: 7,
     characters: old.characters.map((c) => ({
       ...c,
       build: {
@@ -197,6 +197,23 @@ export function migrateV5(raw: unknown): AppWorkspace {
     })),
   });
 }
+const v6Schema = z.object({
+  ...appWorkspaceSchema.shape,
+  version: z.literal(6),
+  characters: z
+    .array(
+      z.object({
+        ...historicalCharacterSchema.shape,
+        build: characterBuildSchema,
+      }),
+    )
+    .max(101),
+});
+
+export function migrateV6(raw: unknown): AppWorkspace {
+  return appWorkspaceSchema.parse({ ...v6Schema.parse(raw), version: 7 });
+}
+
 export function decodeBackup(raw: string): AppWorkspace {
   if (new TextEncoder().encode(raw).byteLength > MAX_BACKUP_BYTES)
     throw new Error("Копия превышает 50 МБ");
@@ -207,6 +224,7 @@ export function decodeBackup(raw: string): AppWorkspace {
     if (value.version === 3) return migrateV3(value);
     if (value.version === 4) return migrateV4(value);
     if (value.version === 5) return migrateV5(value);
+    if (value.version === 6) return migrateV6(value);
   }
   return appWorkspaceSchema.parse(value);
 }

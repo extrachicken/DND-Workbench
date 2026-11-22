@@ -10,6 +10,27 @@ async function startCharacter(page, name, className) {
   await next.click();
 }
 
+async function restore(target, record) {
+  await target.goto("/#settings");
+  target.once("dialog", (d) => d.accept());
+  await target.locator('input[type="file"]').setInputFiles({
+    name: "session.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(record)),
+  });
+  await expect(target.getByRole("status")).toHaveText(
+    "Резервная копия восстановлена",
+  );
+}
+async function download(target) {
+  const ready = target.waitForEvent("download");
+  await target.getByRole("button", { name: "Скачать резервную копию" }).click();
+  const stream = await (await ready).createReadStream();
+  const chunks = [];
+  for await (const chunk of stream) chunks.push(chunk);
+  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+}
+
 test("Класс первого уровня следует выбору игрока", async ({ page }) => {
   await startCharacter(page, "Лира", "Плут");
   await page.getByRole("button", { name: "Заполнить основу сборки" }).click();
@@ -143,28 +164,6 @@ test("Старый адрес листа, биография и ресурсы �
     drafts: [],
     metric: false,
   };
-  async function restore(target, record) {
-    await target.goto("/#settings");
-    target.once("dialog", (d) => d.accept());
-    await target.locator('input[type="file"]').setInputFiles({
-      name: "session.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(record)),
-    });
-    await expect(target.getByRole("status")).toHaveText(
-      "Резервная копия восстановлена",
-    );
-  }
-  async function download(target) {
-    const ready = target.waitForEvent("download");
-    await target
-      .getByRole("button", { name: "Скачать резервную копию" })
-      .click();
-    const stream = await (await ready).createReadStream();
-    const chunks = [];
-    for await (const chunk of stream) chunks.push(chunk);
-    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
-  }
   await restore(page, legacy);
   await page.goto("/#character");
   await expect(page).toHaveURL(/#character\/.+/);
@@ -271,13 +270,11 @@ test("Открывает персонажа по исходному ID из JSON
   };
   await page.goto("/#settings");
   page.once("dialog", (d) => d.accept());
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles({
-      name: "old.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(backup)),
-    });
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "old.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(backup)),
+  });
   await expect(page.getByRole("status")).toHaveText(
     "Резервная копия восстановлена",
   );
@@ -288,4 +285,70 @@ test("Открывает персонажа по исходному ID из JSON
   );
   await page.reload();
   await expect(page.getByLabel("Имя персонажа")).toHaveValue("Рин");
+});
+
+test("Свой Воин получает урон и отменяет его после офлайн-восстановления", async ({
+  page,
+  browser,
+}) => {
+  await startCharacter(page, "Лира", "Воин");
+  await page.getByRole("button", { name: "Заполнить основу сборки" }).click();
+  for (const ability of [
+    "Сила",
+    "Ловкость",
+    "Телосложение",
+    "Интеллект",
+    "Мудрость",
+    "Харизма",
+  ])
+    await page.getByLabel(ability + ": исходная", { exact: true }).fill("14");
+  for (const name of ["Атлетика", "Внимательность"])
+    await page.getByRole("checkbox", { name, exact: true }).check();
+  await page.getByRole("button", { name: "Сохранить черновик" }).click();
+  await page.getByRole("button", { name: "Открыть черновик" }).click();
+  await page.getByLabel("Стартовые хиты", { exact: true }).fill("9");
+  await page.getByLabel("Стартовые временные хиты").fill("3");
+  await page.getByRole("button", { name: "Начать игру" }).press("Enter");
+  await expect(
+    page.getByRole("heading", { name: "Лира", exact: true }),
+  ).toBeVisible();
+  const hit = page.getByRole("button", { name: "Урон", exact: true });
+  await expect(hit).toBeInViewport({ ratio: 1 });
+  await page.getByLabel("Величина урона").fill("5");
+  await hit.click();
+  await expect(page.getByText("7 / 12", { exact: true })).toBeVisible();
+  const url = page.url();
+  await page.goto("/#settings");
+  const backup = await download(page);
+  const clean = await browser.newContext({
+    baseURL: new URL(url).origin,
+    viewport: { width: 320, height: 800 },
+  });
+  try {
+    const second = await clean.newPage();
+    await second.goto("/#settings");
+    await second.evaluate(() => navigator.serviceWorker.ready.then(() => true));
+    await second.reload();
+    await second.waitForFunction(
+      () => navigator.serviceWorker.controller !== null,
+    );
+    await clean.setOffline(true);
+    await restore(second, backup);
+    expect(await download(second)).toEqual(backup);
+    await second.goto(url);
+    await second.reload();
+    await expect(second.getByText("7 / 12", { exact: true })).toBeVisible();
+    await second.getByRole("button", { name: /Отменить урон/ }).click();
+    await expect(second.getByText("9 / 12", { exact: true })).toBeVisible();
+    await expect(second.getByText("Временные хиты · 3")).toBeVisible();
+    await second.reload();
+    await expect(second.getByText("9 / 12", { exact: true })).toBeVisible();
+    expect(
+      await second.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+  } finally {
+    await clean.close();
+  }
 });

@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { characterRoute } from "../hooks/usePage";
+import { StartPlayForm } from "./PlayerSheet";
 import { ProgressionEditor } from "./ProgressionEditor";
 import { previewProgression } from "../progression";
 import type { Campaign } from "../campaign";
@@ -93,7 +94,7 @@ export function Characters({
                   )}
                 </div>
                 <span className="tag">
-                  {c.kind === "demo" ? "Игровой лист" : "Черновик"}
+                  {c.kind === "draft" ? "Черновик" : "Игровой лист"}
                 </span>
                 {c.id === workspace.activeCharacterId && (
                   <span className="active-label">Выбран</span>
@@ -108,9 +109,11 @@ export function Characters({
               <p className="hint">
                 {c.kind === "demo"
                   ? "Хиты, ячейки, снаряжение и история"
-                  : c.build.progression
-                    ? "Характеристики, уровни и владения сохранены."
-                    : "Образ и история. Можно добавить характеристики и уровни."}
+                  : c.kind === "player"
+                    ? `Хиты ${c.runtime.hp} / ${c.build.maxHp}`
+                    : c.build.progression
+                      ? "Характеристики, уровни и владения сохранены."
+                      : "Образ и история. Можно добавить характеристики и уровни."}
               </p>
               <div className="card-actions">
                 {archived ? (
@@ -293,6 +296,14 @@ export function DraftEditor({
           <ArrowLeft size={16} />К персонажам
         </a>
       </div>
+      {baseline && (
+        <StartPlayForm
+          character={baseline}
+          campaign={campaigns.find((c) => c.id === baseline.build.campaignId)}
+          dirty={dirty}
+          save={save}
+        />
+      )}
       <div className="creation-layout">
         <section className="panel">
           {!character && (
