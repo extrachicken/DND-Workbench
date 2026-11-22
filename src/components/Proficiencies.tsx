@@ -1,3 +1,5 @@
+import { RuleHelp } from "./RuleHelp";
+import { skillHelp } from "../creation-reference";
 import {
   abilityNames,
   type Progression,
@@ -47,25 +49,34 @@ export function ProficiencyChoices({
             {available.map((id) => {
               const checked = selected.some((item) => item === id);
               return (
-                <label className="check" key={id}>
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    disabled={
-                      !checked &&
-                      (selected.length >= count || !allowed.includes(id))
-                    }
-                    onChange={(e) =>
-                      onChange({
-                        [kind]: e.target.checked
-                          ? [...selected, id]
-                          : selected.filter((item) => item !== id),
-                      })
-                    }
-                  />
-                  {expertiseNames[id]}
-                  {!allowed.includes(id) && " — недоступно, снимите выбор"}
-                </label>
+                <div className="skill-choice" key={id}>
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={
+                        !checked &&
+                        (selected.length >= count || !allowed.includes(id))
+                      }
+                      onChange={(e) =>
+                        onChange({
+                          [kind]: e.target.checked
+                            ? [...selected, id]
+                            : selected.filter((item) => item !== id),
+                        })
+                      }
+                    />
+                    {expertiseNames[id]}
+                    {!allowed.includes(id) && " — недоступно, снимите выбор"}
+                  </label>
+                  {id !== "thievesTools" && (
+                    <RuleHelp
+                      compact
+                      entry={skillHelp[id]}
+                      label={"О навыке · " + expertiseNames[id]}
+                    />
+                  )}
+                </div>
               );
             })}
             {count > 0 && available.length === 0 && (

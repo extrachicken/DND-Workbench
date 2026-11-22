@@ -7,7 +7,6 @@ async function startCharacter(page, name, className) {
   await next.click();
   await page.getByLabel("Название класса").fill(className);
   await next.click();
-  await next.click();
 }
 
 async function restore(target, record) {
@@ -33,7 +32,7 @@ async function download(target) {
 
 test("Класс первого уровня следует выбору игрока", async ({ page }) => {
   await startCharacter(page, "Лира", "Плут");
-  await page.getByRole("button", { name: "Заполнить основу сборки" }).click();
+  await page.getByRole("button", { name: "Продолжить" }).click();
   await expect(page.getByLabel("Класс уровня 1")).toHaveValue("rogue");
   await page.getByRole("button", { name: "Сохранить черновик" }).click();
   await expect(
@@ -44,7 +43,7 @@ test("Класс первого уровня следует выбору игр�
 test("Волшебник сохраняет выбранный класс", async ({ page }) => {
   await startCharacter(page, "Мирра", "Волшебник");
   await expect(
-    page.getByRole("button", { name: "Заполнить основу сборки" }),
+    page.getByRole("button", { name: "Распределить стандартный набор" }),
   ).toHaveCount(0);
   await page.getByRole("button", { name: "Сохранить черновик" }).click();
   await expect(
@@ -117,7 +116,7 @@ test("На телефоне урон и сохранение доступны б
     page.getByRole("button", { name: "Урон", exact: true }),
   ).toBeInViewport({ ratio: 1 });
   await startCharacter(page, "Лира", "Воин");
-  await page.getByRole("button", { name: "Заполнить основу сборки" }).click();
+  await page.getByRole("button", { name: "Продолжить" }).click();
   await page.evaluate(() => scrollTo(0, 0));
   await expect(
     page.getByRole("button", { name: "Сохранить черновик" }),
@@ -292,7 +291,6 @@ test("Свой Воин получает урон и отменяет его п�
   browser,
 }) => {
   await startCharacter(page, "Лира", "Воин");
-  await page.getByRole("button", { name: "Заполнить основу сборки" }).click();
   for (const ability of [
     "Сила",
     "Ловкость",
@@ -302,6 +300,7 @@ test("Свой Воин получает урон и отменяет его п�
     "Харизма",
   ])
     await page.getByLabel(ability + ": исходная", { exact: true }).fill("14");
+  await page.getByRole("button", { name: "Продолжить" }).click();
   for (const name of ["Атлетика", "Внимательность"])
     await page.getByRole("checkbox", { name, exact: true }).check();
   await page.getByRole("button", { name: "Сохранить черновик" }).click();
@@ -351,4 +350,97 @@ test("Свой Воин получает урон и отменяет его п�
   } finally {
     await clean.close();
   }
+});
+
+test("Справка и живой лист сопровождают создание персонажа", async ({
+  page,
+}) => {
+  await page.goto("/#create");
+  await page.getByLabel("Имя персонажа").fill("Ива");
+  await page
+    .getByRole("combobox", { name: "Предыстория", exact: true })
+    .selectOption("Мудрец");
+  const help = page.getByRole("button", { name: "О предыстории", exact: true });
+  await help.click();
+  await expect(page.getByRole("dialog")).toContainText("Мудрец");
+  await page.keyboard.press("Escape");
+  await expect(help).toBeFocused();
+  await page.getByRole("button", { name: "Продолжить" }).click();
+  await page.getByRole("button", { name: "Плут", exact: true }).click();
+  await page.getByRole("button", { name: "Продолжить" }).click();
+  await page
+    .getByRole("button", { name: "Распределить стандартный набор" })
+    .click();
+  await expect(
+    page.getByLabel("Ловкость: исходная", { exact: true }),
+  ).toHaveValue("15");
+  const sheet = page.getByRole("group", {
+    name: "Лист персонажа",
+    exact: true,
+  });
+  await sheet.locator("summary").click();
+  await expect(sheet).toContainText("Ива");
+  await expect(sheet).toContainText("Мудрец");
+  await expect(sheet).toContainText("+2");
+  await page.getByRole("button", { name: "Сохранить черновик" }).click();
+  await page.getByRole("button", { name: "Открыть черновик" }).click();
+  await expect(
+    page.getByRole("combobox", { name: "Предыстория", exact: true }),
+  ).toHaveValue("Мудрец");
+});
+
+test("На широком экране лист показывает решения при смене шага и класса", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await startCharacter(page, "Ива", "Плут");
+  const sheet = page.getByRole("group", {
+    name: "Лист персонажа",
+    exact: true,
+  });
+  await expect(sheet).toHaveAttribute("open", "");
+  await page
+    .getByRole("button", { name: "Распределить стандартный набор" })
+    .click();
+  await page.getByRole("button", { name: "Продолжить" }).click();
+  const stealth = page.getByLabel("Скрытность", { exact: true }).first();
+  await page.getByRole("button", { name: "О навыке · Скрытность" }).click();
+  await expect(page.getByRole("dialog")).toContainText("Ловкость");
+  await page.getByRole("button", { name: "Закрыть справку" }).click();
+  await expect(stealth).not.toBeChecked();
+  await stealth.check();
+  await expect(sheet).toContainText("Скрытность");
+  const nav = page.getByRole("navigation", { name: "Шаги создания персонажа" });
+  await nav.getByRole("button", { name: /Класс$/ }).click();
+  await page.getByRole("button", { name: "Воин", exact: true }).click();
+  await expect(sheet).toContainText("Воин 1");
+  await nav.getByRole("button", { name: /Характеристики/ }).click();
+  await expect(
+    page.getByLabel("Ловкость: исходная", { exact: true }),
+  ).toHaveValue("15");
+});
+
+test("Справочник ищет по-английски и открывает правило без сети", async ({
+  page,
+  context,
+}) => {
+  await page.goto("/#library");
+  await page.evaluate(() => navigator.serviceWorker.ready.then(() => true));
+  await page.reload();
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
+  await context.setOffline(true);
+  await page.reload();
+  await page
+    .getByRole("searchbox", { name: "Поиск по названию" })
+    .fill("investigation");
+  await page
+    .getByRole("button", { name: "Расследование", exact: true })
+    .press("Enter");
+  await expect(page.getByRole("dialog")).toContainText("Интеллект");
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Книга заклинаний" }).click();
+  await page
+    .getByRole("searchbox", { name: "Поиск заклинаний" })
+    .fill("shield");
+  await expect(page.locator(".spell-row")).toHaveText(/Щит/);
 });

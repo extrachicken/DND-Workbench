@@ -376,7 +376,7 @@ describe("Миграция профилей кампаний из v3", () => {
         if (outcome === "success") {
           await initialize(next);
           const migrated = (await next.documents.get("local"))!;
-          expect(migrated.data.version).toBe(7);
+          expect(migrated.data.version).toBe(8);
           expect(migrated.data.characters).toEqual(
             data.characters.map((c) => ({
               ...c,
@@ -522,8 +522,8 @@ describe("Миграция решений по уровням из v4", () => {
         if (outcome === "success") {
           await initialize(next);
           const moved = (await next.documents.get("local"))!;
-          expect(moved.data.version).toBe(7);
-          expect(next.verno).toBe(8);
+          expect(moved.data.version).toBe(8);
+          expect(next.verno).toBe(9);
           expect(moved.data.notes).toEqual(data.notes);
           expect(moved.data.campaigns).toEqual(data.campaigns);
           expect(moved.data.characters).toEqual(

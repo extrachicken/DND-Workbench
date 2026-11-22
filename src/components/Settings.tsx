@@ -102,7 +102,7 @@ export function Settings({
             />
           </label>
           <p className="hint">
-            JSON · версия 7 · до 50 МБ · импорт версий 1–6 поддерживается
+            JSON · версия 8 · до 50 МБ · импорт версий 1–7 поддерживается
           </p>
         </section>
         <section className="panel">
@@ -128,7 +128,9 @@ export function Settings({
                             ? "До навыков и владений"
                             : r.reason === "migration-v6"
                               ? "До игровых листов Воина и Плута"
-                              : "До последнего импорта"}
+                              : r.reason === "migration-v7"
+                                ? "До добавления предысторий"
+                                : "До последнего импорта"}
                   <small>
                     {new Intl.DateTimeFormat("ru", {
                       dateStyle: "medium",

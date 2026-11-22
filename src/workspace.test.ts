@@ -11,6 +11,7 @@ import {
   makeDraft,
   restoreCharacter,
   selectCharacter,
+  saveDraftBuild,
   updateCharacter,
 } from "./workspace";
 const draft = () =>
@@ -184,4 +185,22 @@ it("не записывает отложенное изменение в арх�
       build: { ...v.build, lore: "Поздняя запись" },
     })),
   ).toThrow();
+});
+
+it("сохранение из старой вкладки сохраняет добавленную предысторию", () => {
+  const c = draft();
+  const s = initialAppWorkspace();
+  s.characters.push(c);
+  const updated = saveDraftBuild(
+    s,
+    c.id,
+    { ...c.build, background: "Мудрец" },
+    c.build,
+  );
+  expect(() =>
+    saveDraftBuild(updated, c.id, { ...c.build, lore: "Новый текст" }, c.build),
+  ).toThrow("другой вкладке");
+  expect(
+    decodeBackup(encodeBackup(updated)).characters.at(-1)?.build.background,
+  ).toBe("Мудрец");
 });

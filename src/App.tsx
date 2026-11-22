@@ -17,11 +17,8 @@ import {
   type AppWorkspace,
 } from "./workspace";
 import type { Character } from "./character";
-import {
-  Characters,
-  DraftEditor,
-  type SaveWorkspace,
-} from "./components/Characters";
+import { Characters, type SaveWorkspace } from "./components/Characters";
+import { DraftEditor } from "./components/DraftEditor";
 import { PlayerSheet } from "./components/PlayerSheet";
 import { GuChenSheet } from "./components/GuChenSheet";
 import { Journal } from "./components/Journal";

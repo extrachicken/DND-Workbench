@@ -14,6 +14,7 @@ import {
   migrateV4,
   migrateV5,
   migrateV6,
+  migrateV7,
 } from "./migrations";
 
 export type RecoverySnapshot = {
@@ -26,6 +27,7 @@ export type RecoverySnapshot = {
     | "migration-v4"
     | "migration-v5"
     | "migration-v6"
+    | "migration-v7"
     | "before-import";
   data: unknown;
 };
@@ -156,6 +158,25 @@ export class WorkbenchDB extends Dexie {
         await tx.table("recovery").put({
           id: "migration-v6",
           reason: "migration-v6",
+          createdAt: new Date().toISOString(),
+          data: document.data,
+        });
+        await tx.table("documents").put({
+          id: "local",
+          data: migrated,
+          backupBytes: jsonBytes(migrated),
+        });
+      });
+    this.version(9)
+      .stores({ documents: "id", recovery: "id,createdAt" })
+      .upgrade(async (tx) => {
+        const document = await tx.table("documents").get("local");
+        if (!document || document.data.version >= 8) return;
+        const migrated = migrateV7(document.data);
+        serializeBackup(migrated);
+        await tx.table("recovery").put({
+          id: "migration-v7",
+          reason: "migration-v7",
           createdAt: new Date().toISOString(),
           data: document.data,
         });

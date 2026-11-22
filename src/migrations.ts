@@ -139,7 +139,7 @@ export function migrateV4(raw: unknown): AppWorkspace {
   const old = v4Schema.parse(raw);
   return appWorkspaceSchema.parse({
     ...old,
-    version: 7,
+    version: 8,
     characters: old.characters.map((c) => ({
       ...c,
       build: { ...c.build, campaignId: null, progression: null },
@@ -177,7 +177,7 @@ export function migrateV5(raw: unknown): AppWorkspace {
   const old = v5Schema.parse(raw);
   return appWorkspaceSchema.parse({
     ...old,
-    version: 7,
+    version: 8,
     characters: old.characters.map((c) => ({
       ...c,
       build: {
@@ -211,7 +211,15 @@ const v6Schema = z.object({
 });
 
 export function migrateV6(raw: unknown): AppWorkspace {
-  return appWorkspaceSchema.parse({ ...v6Schema.parse(raw), version: 7 });
+  return appWorkspaceSchema.parse({ ...v6Schema.parse(raw), version: 8 });
+}
+
+export function migrateV7(raw: unknown): AppWorkspace {
+  const old = z
+    .object({ version: z.literal(7) })
+    .passthrough()
+    .parse(raw);
+  return appWorkspaceSchema.parse({ ...old, version: 8 });
 }
 
 export function decodeBackup(raw: string): AppWorkspace {
@@ -225,6 +233,7 @@ export function decodeBackup(raw: string): AppWorkspace {
     if (value.version === 4) return migrateV4(value);
     if (value.version === 5) return migrateV5(value);
     if (value.version === 6) return migrateV6(value);
+    if (value.version === 7) return migrateV7(value);
   }
   return appWorkspaceSchema.parse(value);
 }

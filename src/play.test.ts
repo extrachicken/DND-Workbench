@@ -69,15 +69,32 @@ it("переносит урон и его однократную отмену ч
   expect(() => undoDamage(restored, c.id, latest)).toThrow();
 });
 
-it.each([false, true])(
-  "перенос v6 сохраняет точный снимок или откатывается (отказ записи %s)",
-  async (fail) => {
+it.each([
+  [6, false],
+  [6, true],
+  [7, false],
+  [7, true],
+] as const)(
+  "перенос v%s сохраняет точный снимок или откатывается (отказ записи %s)",
+  async (version, fail) => {
     const { s } = setup();
     s.characters[0].runtime.hp = 0;
-    const data = { ...s, version: 6 };
+    const data =
+      version === 6
+        ? { ...s, version }
+        : {
+            ...takeDamage(
+              startPlay(s, s.characters[1], 9, 2),
+              s.characters[1].id,
+              3,
+            ),
+            version,
+          };
     const name = crypto.randomUUID();
     const old = new Dexie(name);
-    old.version(7).stores({ documents: "id", recovery: "id,createdAt" });
+    old
+      .version(version + 1)
+      .stores({ documents: "id", recovery: "id,createdAt" });
     await old.table("documents").put({ id: "local", data });
     old.close();
     const next = new WorkbenchDB(name);
@@ -89,15 +106,17 @@ it.each([false, true])(
         await expect(initialize(next)).rejects.toThrow();
         next.close();
         await old.open();
-        expect(old.verno).toBe(7);
+        expect(old.verno).toBe(version + 1);
         expect(await old.table("recovery").count()).toBe(0);
         expect((await old.table("documents").get("local")).data).toEqual(data);
       } else {
         await initialize(next);
         const saved = (await next.documents.get("local"))!;
-        expect(saved.data).toEqual({ ...data, version: 7 });
+        expect(saved.data).toEqual({ ...data, version: 8 });
         expect(saved.backupBytes).toBe(jsonBytes(saved.data));
-        expect((await next.recovery.get("migration-v6"))?.data).toEqual(data);
+        expect(
+          (await next.recovery.get(`migration-v${version}`))?.data,
+        ).toEqual(data);
         expect(decodeBackup(JSON.stringify(data))).toEqual(saved.data);
       }
     } finally {

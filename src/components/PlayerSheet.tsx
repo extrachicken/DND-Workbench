@@ -28,7 +28,7 @@ export function StartPlayForm({
         <p className="hint">
           {dirty
             ? "Сохраните изменения сборки перед началом игры."
-            : "Заполните характеристики и выборы по уровням ниже, затем сохраните черновик."}
+            : "Заполните шаги «Характеристики» и «Навыки и уровни», затем сохраните черновик."}
         </p>
       ) : (
         <form
@@ -109,7 +109,13 @@ export function PlayerSheet({
         <div>
           <h1>{character.build.name}</h1>
           <p>
-            {character.build.ancestry} · {preview.classSummary}
+            {[
+              character.build.ancestry,
+              character.build.background,
+              preview.classSummary,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           </p>
         </div>
         <a href="#characters" className="button secondary">

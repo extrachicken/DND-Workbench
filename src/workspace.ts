@@ -1,11 +1,15 @@
 import { z } from "zod";
-import { characterSchema, type Character } from "./character";
+import {
+  characterBuildSchema,
+  characterSchema,
+  type Character,
+} from "./character";
 import { campaignSchema, type Campaign } from "./campaign";
 export type { Character } from "./character";
 const id = z.string().min(1).max(100);
 export const appWorkspaceSchema = z
   .object({
-    version: z.literal(7),
+    version: z.literal(8),
     campaigns: z.array(campaignSchema).max(1000),
     activeCharacterId: id.nullable(),
     characters: z.array(characterSchema).max(101),
@@ -95,7 +99,7 @@ export const guChenBiography =
   "Гу Чень — Хранитель душ. Его настоящее имя — Синь Дзин. За образом учёного скрывается агент двора Хань.";
 export function initialAppWorkspace(): AppWorkspace {
   return {
-    version: 7,
+    version: 8,
     campaigns: [],
     activeCharacterId: "gu-chen-demo",
     metric: false,
@@ -195,7 +199,7 @@ export function saveDraftBuild(
     !current ||
     current.archivedAt ||
     current.kind !== "draft" ||
-    Object.keys(baseline).some((key) => {
+    Object.keys(characterBuildSchema.shape).some((key) => {
       const field = key as keyof Character["build"];
       return field === "progression"
         ? JSON.stringify(current.build.progression) !==

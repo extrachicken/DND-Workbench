@@ -17,6 +17,7 @@ export const characterBuildSchema = z.object({
   name: z.string().trim().min(1).max(80),
   ancestry: z.string().trim().min(1).max(80),
   className: z.string().trim().min(1).max(80),
+  background: z.string().trim().max(80).optional(),
   lore: z.string().max(30000),
   portrait: z
     .string()
