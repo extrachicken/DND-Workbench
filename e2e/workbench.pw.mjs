@@ -438,6 +438,19 @@ test("Справочник ищет по-английски и открывае�
     .press("Enter");
   await expect(page.getByRole("dialog")).toContainText("Интеллект");
   await page.keyboard.press("Escape");
+  await page
+    .getByRole("searchbox", { name: "Поиск по названию" })
+    .fill("short rest");
+  const rest = page.getByRole("button", { name: "Короткий отдых", exact: true });
+  await rest.press("Enter");
+  const rule = page.getByRole("dialog", { name: "Короткий отдых" });
+  await expect(rule).toContainText("модификатор Телосложения");
+  await expect(rule.getByRole("link")).toHaveAttribute(
+    "href",
+    "https://www.dndbeyond.com/sources/dnd/basic-rules-2014/adventuring#ShortRest",
+  );
+  await page.keyboard.press("Escape");
+  await expect(rest).toBeFocused();
   await page.getByRole("button", { name: "Книга заклинаний" }).click();
   await page
     .getByRole("searchbox", { name: "Поиск заклинаний" })

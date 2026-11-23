@@ -10,7 +10,7 @@ export function Library({
   query: string;
   setQuery: (value: string) => void;
 }) {
-  const [section, setSection] = useState<"creation" | "spells">("creation");
+  const [section, setSection] = useState<"rules" | "spells">("rules");
   const [search, setSearch] = useState("");
   const queryText = search.trim().toLocaleLowerCase("ru");
   const groups = Object.entries(referenceGroups)
@@ -28,10 +28,10 @@ export function Library({
       </div>
       <div className="actions library-switch">
         <button
-          aria-pressed={section === "creation"}
-          onClick={() => setSection("creation")}
+          aria-pressed={section === "rules"}
+          onClick={() => setSection("rules")}
         >
-          Создание персонажа
+          Правила 2014
         </button>
         <button
           aria-pressed={section === "spells"}
@@ -41,7 +41,7 @@ export function Library({
         </button>
       </div>
       <section className="panel">
-        {section === "creation" ? (
+        {section === "rules" ? (
           <>
             <h2>Справочник персонажа</h2>
             <label>
