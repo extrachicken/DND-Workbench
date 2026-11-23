@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { version as appVersion } from "../package.json";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import {
@@ -68,11 +75,49 @@ export function App() {
   const [die, setDie] = useState(20);
   const [physical, setPhysical] = useState("");
   const [noteId, setNoteId] = useState("");
+  const [registration, setRegistration] = useState<ServiceWorkerRegistration>();
+  const [reloadReady, setReloadReady] = useState(false);
+  const requestedUpdate = useRef(false);
+  const hasDraftChanges = useRef(dirty);
+  hasDraftChanges.current = dirty;
   const {
     offlineReady: [offlineReady],
     needRefresh: [needRefresh],
     updateServiceWorker,
-  } = useRegisterSW();
+  } = useRegisterSW({
+    onRegisteredSW: (_, current) => setRegistration(current),
+    onNeedReload() {
+      // Another tab may activate the worker while this one still holds a draft.
+      if (requestedUpdate.current && !hasDraftChanges.current)
+        location.reload();
+      else setReloadReady(true);
+    },
+  });
+  useEffect(() => {
+    if (!registration) return;
+    function checkWhenVisible() {
+      if (!document.hidden && navigator.onLine && !registration?.installing) {
+        void registration?.update().catch(() => {
+          /* Offline mode remains usable. */
+        });
+      }
+    }
+    document.addEventListener("visibilitychange", checkWhenVisible);
+    window.addEventListener("online", checkWhenVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", checkWhenVisible);
+      window.removeEventListener("online", checkWhenVisible);
+    };
+  }, [registration]);
+  function applyUpdate() {
+    if (dirty) return;
+    if (reloadReady || (registration && !registration.waiting)) {
+      location.reload();
+      return;
+    }
+    requestedUpdate.current = true;
+    void updateServiceWorker();
+  }
   useEffect(() => {
     initialize().catch(() =>
       setError(
@@ -196,7 +241,24 @@ export function App() {
                 : nav.find((n) => n.id === page)?.title || "Персонаж"}
             </strong>
           </span>
+          <small
+            className="app-version"
+            aria-label={"Версия Workbench " + appVersion}
+          >
+            v{appVersion}
+          </small>
         </header>
+        {(needRefresh || reloadReady) && (
+          <section className="app-update" aria-label="Обновление приложения">
+            <div>
+              <strong>Доступно обновление Workbench</strong>
+              {dirty && <p>Сохраните изменения, чтобы обновить эту вкладку.</p>}
+            </div>
+            <button onClick={applyUpdate} disabled={dirty}>
+              Применить обновление
+            </button>
+          </section>
+        )}
         <main id="main" tabIndex={-1}>
           {page === "characters" && (
             <Characters workspace={workspace} save={saveApp} />
@@ -266,8 +328,6 @@ export function App() {
               workspace={workspace}
               save={saveApp}
               offlineReady={offlineReady || cached}
-              needRefresh={needRefresh}
-              updateServiceWorker={updateServiceWorker}
               setStatus={setStatus}
               setError={setError}
             />

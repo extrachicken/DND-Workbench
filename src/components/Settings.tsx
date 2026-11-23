@@ -13,16 +13,12 @@ export function Settings({
   workspace,
   save,
   offlineReady,
-  needRefresh,
-  updateServiceWorker,
   setStatus,
   setError,
 }: {
   workspace: AppWorkspace;
   save: SaveWorkspace;
   offlineReady: boolean;
-  needRefresh: boolean;
-  updateServiceWorker: (reloadPage?: boolean) => Promise<void>;
   setStatus: (message: string) => void;
   setError: (message: string) => void;
 }) {
@@ -179,11 +175,6 @@ export function Settings({
               ? "Файлы приложения подготовлены для офлайн-доступа."
               : "Офлайн-файлы ещё не готовы. Оставьте приложение открытым при подключении к сети."}
           </p>
-          {needRefresh && (
-            <button onClick={() => void updateServiceWorker(true)}>
-              Применить обновление
-            </button>
-          )}
         </section>
       </div>
     </>

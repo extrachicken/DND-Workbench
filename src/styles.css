@@ -2201,3 +2201,24 @@ details button {
 .table-rules {
   margin-top: 12px;
 }
+
+.app-version {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.app-update {
+  display: flex;
+  gap: 12px 24px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px clamp(16px, 4vw, 40px);
+  background: var(--panel);
+  border-bottom: 1px solid var(--gold);
+}
+.app-update strong {
+  color: var(--gold);
+}
+.app-update p {
+  margin: 4px 0 0;
+}
